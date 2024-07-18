@@ -1,7 +1,7 @@
 ---
 title: "laboratory"
 layout: archive
-permalink: /laboratory
+permalink: categories/#laboratory
 ---
 
 
