@@ -290,9 +290,3 @@ defaults:
       comments: # true
       share: true
       related: true
-
-# Masik's add
-collections:
-  categories:
-    output: true
-
