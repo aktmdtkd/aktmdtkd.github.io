@@ -1,7 +1,7 @@
 ---
 title: "novel"
 layout: archive
-permalink: categories/#novel
+permalink: /novel
 ---
 
 
