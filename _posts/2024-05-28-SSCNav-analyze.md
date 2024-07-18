@@ -1,6 +1,8 @@
 ---
 layout: single
 title:  "SSCNav Code Analyze"
+categories:
+  - laboratory
 ---
 
 

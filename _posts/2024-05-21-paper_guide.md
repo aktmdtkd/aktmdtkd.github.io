@@ -1,6 +1,8 @@
 ---
 layout: single
 title:  "효율적인 논문 작성 기법"
+categories:
+  - laboratory
 ---
 
 ## 효율적으로 논문을 작성하는 방법
