@@ -6,9 +6,6 @@ categories:
 ---
 
 
-
-# Colcon Build Troubleshooting
-
 ---
 
 
