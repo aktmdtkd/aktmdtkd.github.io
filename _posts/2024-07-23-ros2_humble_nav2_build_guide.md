@@ -1,6 +1,6 @@
 ---
 layout: single
-title:  ""
+title:  "ROS2 humble nav2 build error"
 categories:
   - laboratory
 ---
