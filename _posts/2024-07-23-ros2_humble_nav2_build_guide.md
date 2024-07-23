@@ -7,6 +7,8 @@ categories:
 
 # Colcon Build Troubleshooting
 
+---
+
 
 ## 이걸 쓰게 된 이유
 nav2가 사용자에게 그다지 친절하지 못한 부분이 있다. 그래서 본인은 매우 어려움을 겪었었는데, 그냥 설치하고 싶다면, 
