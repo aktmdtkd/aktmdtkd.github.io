@@ -117,7 +117,7 @@ analytics:
 # Site Author
 author:
   name             : "Masik"
-  avatar           : # path of avatar image, e.g. "/assets/images/bio-photo.jpg"
+  avatar           : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_profile.png"
   bio              : "**Pessimism** is excuse of the **unread**"
   location         : "Dongguk Univ."
   email            : "aktmdtkd@gmail.com"
@@ -140,6 +140,10 @@ author:
     - label: "Instagram"
       icon: "fab fa-fw fa-instagram"
       # url: "https://instagram.com/"
+    - label: "Solved.ac"
+      icon: "fab fa-solid fa-brackets-curly"
+      url: "https://solved.ac/profile/aktmdtkd"
+
 
 # Site Footer
 footer:
