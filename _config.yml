@@ -27,7 +27,7 @@ repository               : # GitHub username/repo-name e.g. "mmistakes/minimal-m
 teaser                   : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
 logo                     : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/akari_icon.ico"
 masthead_title           : # overrides the website title displayed in the masthead, use " " for no title
-# breadcrumbs            : false # true, false (default)
+breadcrumbs              : true # true, false (default)
 words_per_minute         : 200
 comments:
   provider               : # false (default), "disqus", "discourse", "facebook", "staticman", "staticman_v2", "utterances", "giscus", "custom"
