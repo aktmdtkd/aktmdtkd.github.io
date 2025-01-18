@@ -300,7 +300,7 @@ defaults:
       show_date: true
       # read_time: true
 
-header: "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
-  # image: https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png
-  # overlay_image: https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png
-  # image_description: "Girls und Panzer Mika"
+  - scope:
+    values:
+      header:
+        overlay_image: "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
