@@ -30,17 +30,6 @@ masthead_title           : # overrides the website title displayed in the masthe
 breadcrumbs              : true # true, false (default)
 words_per_minute         : 200
 
-
-defaults:
-  # _posts
-  - scope:
-      path: ""
-      type: _posts
-    values:
-      show_date: true
-      read_time: true
-
-
 comments:
   provider               : # false (default), "disqus", "discourse", "facebook", "staticman", "staticman_v2", "utterances", "giscus", "custom"
   disqus:
@@ -234,7 +223,7 @@ sass:
 
 # Outputting
 permalink: /:categories/:title/
-paginate: 5 # amount of posts to show
+paginate: 7 # amount of posts to show
 paginate_path: /page:num/
 timezone: # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
@@ -308,3 +297,5 @@ defaults:
       related: true
       sidebar:                  # 추가한 부분
         nav: "sidebar-category" # 추가한 부분
+      show_date: true
+      read_time: true
