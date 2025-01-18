@@ -16,7 +16,7 @@ minimal_mistakes_skin    : "default" # "air", "aqua", "contrast", "dark", "dirt"
 # future                   : true
 # Site Settings
 locale                   : "en-US"
-title                    : "마식의 병법서"
+title                    : "Masik's Art of War"
 title_separator          : "Robot_Path_Planning + History + Art + Writing"
 subtitle                 : # site tagline that appears below site title in masthead
 name                     : "Masik Jo_HyeongNam"
