@@ -298,4 +298,4 @@ defaults:
       sidebar:                  # 추가한 부분
         nav: "sidebar-category" # 추가한 부분
       show_date: true
-      read_time: true
+      # read_time: true
