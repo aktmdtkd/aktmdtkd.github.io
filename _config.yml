@@ -15,7 +15,7 @@
 minimal_mistakes_skin    : "default" # "air", "aqua", "contrast", "dark", "dirt", "neon", "mint", "plum", "sunrise"
 # future                   : true
 # Site Settings
-locale                   : "en-US"
+locale                   : "ko-KR"
 title                    : "Masik's Art of War"
 title_separator          : "Robot_Path_Planning + History + Art + Writing"
 subtitle                 : # site tagline that appears below site title in masthead
