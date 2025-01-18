@@ -141,7 +141,7 @@ author:
     #   icon: "fab fa-fw fa-instagram"
       # url: "https://instagram.com/"
     - label: "Solved.ac"
-      icon: "fab fa-fw fa-code"
+      icon: "fas fa-code"
       url: "https://solved.ac/profile/aktmdtkd"
 
 
