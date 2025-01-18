@@ -19,7 +19,7 @@ locale                   : "en-US"
 title                    : "Masik's Art of War"
 title_separator          : "Robot_Path_Planning + History + Art + Writing"
 subtitle                 : # site tagline that appears below site title in masthead
-name                     : "Masik Jo_HyeongNam"
+name                     : "Masik"
 description              : "Pessimism is excuse of the unread"
 url                      : "https://aktmdtkd.github.io"
 baseurl                  : # the subpath of your site, e.g. "/blog"
