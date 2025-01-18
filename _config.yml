@@ -301,5 +301,5 @@ defaults:
       # read_time: true
 
 header:
-  image: https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png
+  image: "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
   image_description: "Girls und Panzer Mika"
