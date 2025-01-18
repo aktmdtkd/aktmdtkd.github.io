@@ -3,6 +3,9 @@ layout: single
 title:  "ROS2 humble nav2 build error"
 categories:
   - laboratory
+header:
+  teaser: https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-10-26-DB/DB_image.png
+  image: https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-10-26-DB/DB_image.png
 ---
 
 
