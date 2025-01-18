@@ -299,8 +299,3 @@ defaults:
         nav: "sidebar-category" # 추가한 부분
       show_date: true
       # read_time: true
-
-  - scope:
-    values:
-      header:
-        overlay_image: "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
