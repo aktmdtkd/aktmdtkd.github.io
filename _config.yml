@@ -30,13 +30,16 @@ masthead_title           : # overrides the website title displayed in the masthe
 breadcrumbs              : true # true, false (default)
 words_per_minute         : 200
 
+
 defaults:
   # _posts
   - scope:
       path: ""
-      type: posts
+      type: _posts
     values:
       show_date: true
+      read_time: true
+
 
 comments:
   provider               : # false (default), "disqus", "discourse", "facebook", "staticman", "staticman_v2", "utterances", "giscus", "custom"
