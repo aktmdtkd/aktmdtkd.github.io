@@ -299,3 +299,6 @@ defaults:
         nav: "sidebar-category" # 추가한 부분
       show_date: true
       # read_time: true
+      toc: true
+      toc_label: "Unique Title"
+      toc_icon: "heart"
