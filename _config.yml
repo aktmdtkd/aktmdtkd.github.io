@@ -25,7 +25,7 @@ url                      : "https://aktmdtkd.github.io"
 baseurl                  : # the subpath of your site, e.g. "/blog"
 repository               : # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
 teaser                   : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/mika_ako_fail.png"
-logo                     : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/akari_icon.ico"
+logo                     : "https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/blog_setting/akari_icon.jpg"
 masthead_title           : # overrides the website title displayed in the masthead, use " " for no title
 breadcrumbs              : true # true, false (default)
 words_per_minute         : 200
