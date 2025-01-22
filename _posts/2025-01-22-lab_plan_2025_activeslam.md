@@ -26,25 +26,25 @@ DWA를 RRT와 융합하여 로봇을 이동하는 것을 진행했었습니다. 
 
 학부생 마지막 시험기간동안 너무 심심하고 그래서 특허거리를 하나 생각했었음. 그 내용이... 지금 보면 별볼일 없어서 여기 블로그에 올려도 큰 영향은 없을 것 같다고 생각함.
 
-![1번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/1.png)
+![1번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/1.png)
 <center>Fig 1. Patent idea: Create cluster binary cross paths.</center>  
 <br>
 
 이게 '군집 쌍원 교차 경로 생성' 이라는 아이디어 였는데, 요점은 벽면 혹은 라바콘을 LiDAR나 Scaner 같은 걸로 훑으면 그걸 클러스터링 한 다음에 원을 기반으로 뭉쳐주고, 그 도형들의 교점으로 이동 경로의 노드를 만들자는 아이디어였음.
 
-![2번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/2.png)
+![2번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/2.png)
 <center>Fig 2. Explanation 1 of patent ideas</center>  
 <br>
 
-![3번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/3.png)
+![3번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/3.png)
 <center>Fig 3. Explanation 2 of patent ideas</center>  
 <br>
 
-![4번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/4.png)
+![4번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/4.png)
 <center>Fig 4. Explanation 3 of patent ideas</center>  
 <br>
 
-![5번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/5.png)
+![5번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/5.png)
 <center>Fig 5. Explanation 4 of patent ideas</center>  
 <br>
 
@@ -71,13 +71,13 @@ DWA를 RRT와 융합하여 로봇을 이동하는 것을 진행했었습니다. 
 
 아무튼 위와 같은 목표로 찾아보게 된 논문들이 몇편 있었는데, 그중 3개만 논문 대표 그림과 함께 간략히 소개하겠다.
 
-![6번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/6.png)
+![6번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/6.png)
 <center>Fig 6. Huang, Jinshan, and Bohan Chen. "Improved 3D UAV Path Planning Algorithm Based on Combined DWA and APF." 2024 IEEE 7th International Conference on Information Systems and Computer Aided Education (ICISCAE). IEEE, 2024.</center>
 <br>
 
 이 논문은 DWA와 APF를 융합한 새로운 지역 경로 계획을 말한다. 동적 장애물에 대한 효율적인 회피를 할 수 있다는 것이 주요 기여 사항.
 
-![7번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/7.png)
+![7번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/7.png)
 <center>Fig 7. J. Fan et al., "An Improved Path Planning Algorithm With Adaptive Parameters and Predictions," in IEEE Systems Journal, vol. 17, no. 3, pp. 4911-4921, Sept. 2023, doi: 10.1109/JSYST.2023.3274187.</center>
 <br>
 
@@ -87,7 +87,7 @@ DWA를 RRT와 융합하여 로봇을 이동하는 것을 진행했었습니다. 
 
 그래서 장애물의 위치를 확률 기반으로 예측해서 움직이는 경로계획을 연구할까 생각했었다. (그러나 연구분야로 선정되지 않았다. Active SLAM 전까지는 가장 유력했던 연구주제였음.)
 
-![8번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2024-01-22-lab_plan_2025_activeslam/8.png)
+![8번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/8.png)
 <center>Fig 8. J. Chang, N. Dong, D. Li, W. H. Ip and K. L. Yung, "Skeleton Extraction and Greedy-Algorithm-Based Path Planning and its Application in UAV Trajectory Tracking," in IEEE Transactions on Aerospace and Electronic Systems, vol. 58, no. 6, pp. 4953-4964, Dec. 2022, doi: 10.1109/TAES.2022.3198925.</center>
 <br>
 
