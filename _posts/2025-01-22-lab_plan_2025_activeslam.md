@@ -24,7 +24,7 @@ DWA를 RRT와 융합하여 로봇을 이동하는 것을 진행했었습니다. 
 
 ## 새로운 도전, 특허
 
-학부생 마지막 시험기간동안 너무 심심하고 그래서 특허거리를 하나 생각했었음. 그 내용이... 지금 보면 별볼일 없어서 여기 블로그에 올려도 큰 영향은 없을 것 같다고 생각함.
+학부생 마지막 시험기간동안 같은 내용만 계속 보기가 좀 그래서 불현듯 특허거리를 하나 생각했었다. 그 내용이... 지금 보면 별볼일 없어서 여기 블로그에 올려도 큰 영향은 없을 것 같다고 생각함.
 
 ![1번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/1.png)
 <center>Fig 1. Patent idea: Create cluster binary cross paths.</center>  
