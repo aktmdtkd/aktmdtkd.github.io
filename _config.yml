@@ -300,6 +300,6 @@ defaults:
       show_date: true
       # read_time: true
       toc: true
-      toc_label: "Unique Title"
-      toc_icon: "heart"
+      toc_label: "총람(總覽)"
+      toc_icon: "archive"
       toc_sticky: true
