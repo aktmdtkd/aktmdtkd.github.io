@@ -112,6 +112,10 @@ DWA를 RRT와 융합하여 로봇을 이동하는 것을 진행했었습니다. 
 
 그러다가 Frontier에 대해서 접하였다. "Efficient and High Path Quality Autonomous Exploration and Trajectory Planning of UAV in an Unknown Environment"라는 논문을 한번 읽어봤는데, 여기서 사용한 방법론중 하나가 Frontier였던 것.
 
+![9번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/9.png)
+<center>Fig 9. Schmid, Lukas, et al. "An efficient sampling-based method for online informative path planning in unknown environments." IEEE Robotics and Automation Letters 5.2 (2020): 1500-1507.</center>
+<br>
+
 Frontier란 U(Unknown) F(Free) O(Occupied) 맵핑 방식에서 U와 붙어있는 F를 지칭하는 말이다. 
 
 이 Frontier가 존재한다는 말은 센서에 관측되지 않았을 뿐 아직 길(Free)이 있을 가능성이 존재하는 곳이기 때문에 이 부분을 계속해서 추적하면 로봇이 속한 해당 area를 모두 mapping할 수 있다는 의미인 것이다.
@@ -120,6 +124,39 @@ Frontier란 U(Unknown) F(Free) O(Occupied) 맵핑 방식에서 U와 붙어있는
 
 그리고 논문을 좀 더 읽다보니 Active SLAM이 이 주제를 의미함을 확신하게 되었다. 이게 좀 애매했던게, 논문 조사하면서 이 단어가 계속 튀어나왔었는데 뭔가 단어 자체가 추상적인 감이 있어서 "3차원 공간 맵핑을 위한 미지의 환경에 대한 효과적인 최적 경로계획"이랑 "Active SLAM"이 동일한 의미를 가지는지 1~2개 논문으로 단정짓기 어려웠다. 그래서 수차례 논문을 조사한 결과 동일하다는 것을 알아냈다. 여기에 대충 2~3일 정도 걸렸음.
 
+
+## Active SLAM 조사
+
+지금까지는 일종의 탐사 느낌이 짙었다. 그러나 1월 중순이 넘어가면서 본격적으로 드라이브를 밟기 시작한다. 이 시즌에는 연구실의 Jackal 로봇 세팅과 Turtlebot 4 세팅을 다시 준비하고 LiDAR들을 관리하기도 하였으며, Ouster를 사용하려는 시도가 있었다. (Ouster는 펌웨어 및 드라이버 이슈로 안되었지만... 그리고 이때 고등학생들 대상으로 하는 학교 전공 체험 행사 날이 섞여있었다.)
+
+본격적으로 Active SLAM을 제대로 알기 위해서는 이 분야의 흐름을 잘 설명하고 그 원리를 잘 풀어서 쓴 논문을 보아야 했다. 그런 의미에서 이번 2025년 계획에서 소개할 가장 중요한 것은 Active SLAM을 알 수 있는 논문을 소개하는 것이다. 소개할 논문은 "Path Planning for Active SLAM Based on the D* Algorithm With Negative Edge Weights(2018)" 라는 논문과 "Autonomous Exploration Method for Fast Unknown Environment Mapping by Using UAV Equipped With Limited FOV Sensor(2024)"라는 논문이다.
+
+위 두 논문은 별도로 누가 이 분야에서 이걸 추천하더라, 이런 경로를 통해서 알게 된 것이 아니다. 그저 30개의 주제에 적합한 초록을 가진 논문들을 조금씩 읽어보다가 그중 본인이 직접 선택한 논문이다. 때문에 이 두 논문은 지극히 마식_조형남의 개인적인 사견으로서 Active SLAM을 이해하는데에 도움이 된다고 생각됨을 염두에 두었으면 한다.
+
+
+## D\* 알고리즘
+
+"Path Planning for Active SLAM Based on the D* Algorithm With Negative Edge Weights"
+논문 링크: https://ieeexplore.ieee.org/abstract/document/7878681
+
+위 논문은 Active SLAM의 기본적인 원리들을 보여주는 논문이라 할 수 있다. 초심자라도 이해하기 어려운 개념들을 많이 사용하진 않고, 무엇보다 서론(겸 배경 연구)에서 Active SLAM을 이해하기 쉽게 설명한다. 그래서 이 논문이 좋다고 생각했다.
+
+위 논문에서는 아래와 같은 구조로 이루어진다고 한다.
+
+![10번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/10.png)
+<center>Fig 10. 방법론 전체 순서도; Path Planning for Active SLAM Based on the D* Algorithm With Negative Edge Weights</center>
+<br>
+
+Fig 10은 그냥 논문의 전체 개괄적인 내용이라서 상징적으로 넣었다. 중요하진 않다. 중요한 것은 다음 그림인데, 논문의 핵심이다.
+
+![11번그림](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-01-22-lab_plan_2025_activeslam/11.png)
+<center>Fig 11. Graph based SLAM에서의 Loop Closing과 그 가능성에 대한 그림; Path Planning for Active SLAM Based on the D* Algorithm With Negative Edge Weights</center>
+<br>
+
+이 논문에서는 우선 여러 SLAM 중에서도 Graph-based SLAM에 대한 개념을 아는 것이 매우 중요하다.
+
 ---
 
-작성 임시 중단. 추후 작성 예정.
+작성중
+
+참고 유튜브 링크 d\* 알고리즘 기초 영상: https://www.youtube.com/watch?v=e_7bSKXHvOI
