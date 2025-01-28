@@ -132,6 +132,9 @@ author:
     - label: "Solved.ac"
       icon: "fas fa-code"
       url: "https://solved.ac/profile/aktmdtkd"
+    - label: "youtube"
+      icon: "fab fa-youtube"
+      url: "https://www.youtube.com/@%EB%8C%80%EC%82%AC%EB%A7%88%EB%A7%88%EC%8B%9D%EC%84%A0%EC%83%9D"
 
 
 # Site Footer
