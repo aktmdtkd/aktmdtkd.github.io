@@ -1,12 +1,12 @@
 ---
 layout: single
-title:  "참회의 대국
+title:  "참회의 대국"
 categories:
   - novel
 ---
 
 작가: 마식<br>
-양식: 단편 소설
+양식: 단편 소설<br>
 작성 날짜: 2019년 4월(추정)
 
 ---
