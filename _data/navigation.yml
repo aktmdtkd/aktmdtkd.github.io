@@ -12,6 +12,10 @@ main:
     url:  "/drawing"
   - title: "Music"
     url:  "/music"
+  - title: "PaperReview"
+    url:  "/paperreview"
+  - title: "History"
+    url:  "/history"
 
   # - title: "About"
   #   url: https://mmistakes.github.io/minimal-mistakes/about/
@@ -44,3 +48,11 @@ sidebar-category:
       - title: "🎵 음악"
         url:  "/music"
         category: "music"
+
+      - title: "📄 논문"
+        url:  "/paperreview"
+        category: "paperreview"
+
+      - title: "📜 역사"
+        url:  "/history"
+        category: "history"
