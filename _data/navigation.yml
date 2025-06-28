@@ -10,6 +10,9 @@ main:
     url:  "/novel"
   - title: "Drawing"
     url:  "/drawing"
+  - title: "Music"
+    url:  "/music"
+
   # - title: "About"
   #   url: https://mmistakes.github.io/minimal-mistakes/about/
   # - title: "Sample Posts"
@@ -37,3 +40,7 @@ sidebar-category:
       - title: "🖼️ 드로잉"
         url:  "/drawing"
         category: "drawing"
+
+      - title: "🎵 음악"
+        url:  "/music"
+        category: "music"
