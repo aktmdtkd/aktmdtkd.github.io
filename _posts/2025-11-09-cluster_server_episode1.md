@@ -27,7 +27,7 @@ tag: [RaspberryPI, Raspberry, KhadasVim4, server, cluster]
 
 [라즈베리 파이 클러스터 유튜브 영상](https://www.youtube.com/watch?v=1SvNkdTzUng)
 
-![참고 이미지](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server/raspberrypi_cluster_ex.png)
+![참고 이미지](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server_episode1/raspberrypi_cluster_ex.png)
 
 그래서 클러스터를 만드려면 보드 말고도 전체 구조물 렉 프레임이나 스위치, 포트 등을 필요로 합니다. 그리고 전원 관련도 필요한데, 이건 오늘은 다루지 않습니다. 오늘은 Khadas Vim4랑 노닥거리면서 그 기틀을 만들 것입니다.
 
@@ -49,7 +49,7 @@ tag: [RaspberryPI, Raspberry, KhadasVim4, server, cluster]
 전 Khadas Vim4가 있기 때문에 이 친구를 head node로 했습니다. 얘가 어지간한 라즈베리파이보다 좋기 때문이죠.
 (그만큼 가격도 비싸고...)
 
-![khadas vim4 하드웨어](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server/khadas_vim4_hardware.png)
+![khadas vim4 하드웨어](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server_episode1/khadas_vim4_hardware.png)
 
 그러면 이 친구랑 제가 주로 사용하는 PC와 스마트폰에서 이 Khadas Vim4에 접속하면 되겠죠? 그래야 클러스터로 연결된 다른 라즈베리파이도 건들 수 있으니까요.
 
@@ -89,7 +89,7 @@ ip는 tailscale이 부여한 서버측 ip를 입력합시다. 저에겐 Khadas V
 
 그러면? 아마 연결이 될 겁니다.
 
-![Khadas_Vim4](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server/khadas_vim4.png)
+![Khadas_Vim4](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image/2025-11-09-cluster_server_episode1/khadas_vim4.png)
 
 
 이런식으로 말이죠. 이거 윈도우에서 찍은 것입니다. 윗부분은 ip가 있어서 빼고 찍었습니다.
