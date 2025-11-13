@@ -100,6 +100,12 @@ ip는 tailscale이 부여한 서버측 ip를 입력합시다. 저에겐 Khadas V
 
 웹 사이트를 호스팅한다거나 하는 용도로는 쓸 생각이 없어서, 저는 그냥 이렇게 tailscale로 원격 워크스테이션같이 쓰려고 합니다.
 
+여기서 로그아웃된 상태로 tailscale을 시스템으로 켠 상태로 두고 싶다면 다음 명령어를 치세요
+
+> sudo systemctl enable --now tailscaled
+
+이러면 전원 넣기만 해도 알아서 켜지면서 접속 가능하게 됩니다.
+
 ### 클러스터 준비
 
 이제 원격 접속이 되었으니, 이 Khadas VIM4를 앞으로 연결될 라즈베리파이를 '지휘'할 '헤드 노드(Head Node)'로 만드는 작업을 할겁니다. 그냥 PC들 중에서 제일 좋은 스펙을 가진 PC가 Head Node인거죠.
@@ -168,12 +174,6 @@ ip는 tailscale이 부여한 서버측 ip를 입력합시다. 저에겐 Khadas V
 > sudo systemctl restart nfs-kernel-server
 
 이제 VIM4는 `/cluster/shared`라는 폴더를 네트워크에 공유하기 시작한겁니다.
-
-여기서 로그아웃된 상태로 tailscale을 시스템으로 켠 상태로 두고 싶다면 다음 명령어를 치세요
-
-> sudo systemctl enable --now tailscaled
-
-이러면 전원 넣기만 해도 알아서 켜지면서 접속 가능하게 됩니다.
 
 ---
 
