@@ -169,6 +169,12 @@ ip는 tailscale이 부여한 서버측 ip를 입력합시다. 저에겐 Khadas V
 
 이제 VIM4는 `/cluster/shared`라는 폴더를 네트워크에 공유하기 시작한겁니다.
 
+여기서 로그아웃된 상태로 tailscale을 시스템으로 켠 상태로 두고 싶다면 다음 명령어를 치세요
+
+> sudo systemctl enable --now tailscaled
+
+이러면 전원 넣기만 해도 알아서 켜지면서 접속 가능하게 됩니다.
+
 ---
 
 ### 3단계: MPI 라이브러리 설치
