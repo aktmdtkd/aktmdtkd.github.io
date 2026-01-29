@@ -18,7 +18,7 @@
     ],
     "units": [
       { "id": 1, "class": "cavalry", "team": "blue", "x": 2, "y": 2, "name": "조조" },
-      { "id": 2, "class": "infantry", "team": "blue", "x": 3, "y": 3, "name": "하후돈" },
+      { "id": 2, "class": "infantry", "team": "blue", "x": 2, "y": 3, "name": "하후돈" },
       { "id": 3, "class": "archer",   "team": "blue", "x": 1, "y": 3, "name": "하후연" },
       { "id": 10, "class": "infantry", "team": "red",  "x": 8, "y": 5, "name": "황건적" },
       { "id": 11, "class": "archer",   "team": "red",  "x": 9, "y": 6, "name": "황건적" },

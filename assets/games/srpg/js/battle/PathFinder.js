@@ -1,9 +1,9 @@
 export class PathFinder {
     constructor() {
-        this.directions = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]; // 상하좌우
+        this.directions = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
     }
 
-    // 이동 가능한 좌표 목록 반환
+    // [기존] 이동 가능한 타일 목록 반환
     getMovableTiles(unit, gridMap, allUnits) {
         let startNode = { x: unit.x, y: unit.y, dist: 0 };
         let queue = [startNode];
@@ -14,34 +14,21 @@ export class PathFinder {
 
         while (queue.length > 0) {
             let current = queue.shift();
-
-            // 이동력이 남아있다면 확장
             if (current.dist < unit.moveRange) {
                 for (let d of this.directions) {
                     let nx = current.x + d.x;
                     let ny = current.y + d.y;
 
-                    // 1. 맵 밖으로 나갔나?
                     if (nx < 0 || ny < 0 || nx >= gridMap.cols || ny >= gridMap.rows) continue;
-                    
-                    // 2. 이미 방문했나?
                     if (visited.has(`${nx},${ny}`)) continue;
+                    if (gridMap.data[ny][nx] !== 0) continue; // 장애물 체크
 
-                    // 3. 장애물(산, 물)인가? (여기선 0:평지 빼고 다 못간다고 가정)
-                    // * 나중엔 병종별 이동비용 테이블(TerrainTable)을 참조해야 함
-                    if (gridMap.data[ny][nx] !== 0) continue;
-
-                    // 4. 다른 유닛이 길을 막고 있나? (아군은 통과, 적군은 차단 등)
-                    // 일단 간단하게 '누가 있으면 못 감'으로 처리 (목적지 기준)
+                    // 유닛 충돌 체크
                     let occupant = allUnits.find(u => u.x === nx && u.y === ny);
-                    
-                    // (조조전 룰: 이동 경로는 뚫려 있어도, 최종 도착지에 누가 있으면 못 멈춤)
-                    // 여기서는 BFS 탐색 중에는 통과 가능하다고 치고, 결과 담을 때 체크
                     
                     visited.add(`${nx},${ny}`);
                     queue.push({ x: nx, y: ny, dist: current.dist + 1 });
 
-                    // 결과에는 '빈 땅'만 추가
                     if (!occupant) {
                         result.push({ x: nx, y: ny });
                     }
@@ -49,5 +36,54 @@ export class PathFinder {
             }
         }
         return result;
+    }
+
+    // [신규] 특정 위치까지의 경로(Path) 반환 (BFS 활용)
+    findPath(unit, targetX, targetY, gridMap, allUnits) {
+        let startNode = { x: unit.x, y: unit.y, parent: null };
+        let queue = [startNode];
+        let visited = new Set();
+        visited.add(`${unit.x},${unit.y}`);
+
+        let finalNode = null;
+
+        while (queue.length > 0) {
+            let current = queue.shift();
+
+            // 목표 도달 시 종료
+            if (current.x === targetX && current.y === targetY) {
+                finalNode = current;
+                break;
+            }
+
+            for (let d of this.directions) {
+                let nx = current.x + d.x;
+                let ny = current.y + d.y;
+
+                if (nx < 0 || ny < 0 || nx >= gridMap.cols || ny >= gridMap.rows) continue;
+                if (visited.has(`${nx},${ny}`)) continue;
+                if (gridMap.data[ny][nx] !== 0) continue; // 장애물 통과 불가
+
+                // 가는 길에 다른 유닛이 있으면 막힘 (단, 도착지는 이미 비어있음을 GameManager에서 확인했으므로 제외)
+                let occupant = allUnits.find(u => u.x === nx && u.y === ny);
+                if (occupant && (nx !== targetX || ny !== targetY)) continue;
+
+                visited.add(`${nx},${ny}`);
+                // parent를 기록해서 경로 역추적
+                queue.push({ x: nx, y: ny, parent: current });
+            }
+        }
+
+        // 경로 역추적 (Backtracking)
+        if (finalNode) {
+            let path = [];
+            let curr = finalNode;
+            while (curr.parent) { // 시작점(parent==null)은 제외
+                path.push({ x: curr.x, y: curr.y });
+                curr = curr.parent;
+            }
+            return path.reverse(); // 역순이므로 뒤집기
+        }
+        return [];
     }
 }
