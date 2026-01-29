@@ -1,0 +1,34 @@
+{
+  "infantry": {
+    "name": "보병",
+    "moveRange": 4,
+    "attackRange": 1,
+    "hp": 100,
+    "atk": 30,
+    "def": 20
+  },
+  "cavalry": {
+    "name": "기병",
+    "moveRange": 6,
+    "attackRange": 1,
+    "hp": 120,
+    "atk": 35,
+    "def": 15
+  },
+  "archer": {
+    "name": "궁병",
+    "moveRange": 4,
+    "attackRange": 2,
+    "hp": 80,
+    "atk": 25,
+    "def": 10
+  },
+  "mage": {
+    "name": "책사",
+    "moveRange": 3,
+    "attackRange": 2,
+    "hp": 60,
+    "atk": 40,
+    "def": 5
+  }
+}
