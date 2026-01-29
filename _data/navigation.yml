@@ -1,0 +1,64 @@
+# main links
+main:
+  # - title: "Quick-Start Guide"
+  #   url: https://mmistakes.github.io/minimal-mistakes/docs/quick-start-guide/
+  - title: "Blog"
+    url: "/blog"
+  - title: "Laboratory"
+    url:  "/laboratory"
+  - title: "Novel"
+    url:  "/novel"
+  - title: "Drawing"
+    url:  "/drawing"
+  - title: "Music"
+    url:  "/music"
+  - title: "PaperReview"
+    url:  "/paperreview"
+  - title: "History"
+    url:  "/history"
+  - title: "game"
+    url:  "/game"
+
+  # - title: "About"
+  #   url: https://mmistakes.github.io/minimal-mistakes/about/
+  # - title: "Sample Posts"
+  #   url: /year-archive/
+  # - title: "Sample Collections"
+  #   url: /collection-archive/
+  # - title: "Sitemap"
+  #   url: /sitemap/
+
+sidebar-category:
+  - title: "카테고리"
+    children:
+      - title: "📌 블로그"
+        url: "/blog"
+        category: "blog"
+
+      - title: "💻 실험실"
+        url:  "/laboratory"
+        category: "laboratory"
+
+      - title: "📖 소설"
+        url:  "/novel"
+        category: "novel"
+
+      - title: "🖼️ 드로잉"
+        url:  "/drawing"
+        category: "drawing"
+
+      - title: "🎵 음악"
+        url:  "/music"
+        category: "music"
+
+      - title: "📄 논문"
+        url:  "/paperreview"
+        category: "paperreview"
+
+      - title: "📜 역사"
+        url:  "/history"
+        category: "history"
+
+      - title: "🎮️ 게임"
+        url:  "/game"
+        category: "game"

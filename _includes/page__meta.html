@@ -1,0 +1,44 @@
+{% assign document = post | default: page %}
+
+<p class="page__meta">
+  
+  {% if document.show_date and document.date %}
+    {% assign date = document.date %}
+    <span class="page__meta-date">
+      <i class="far fa-calendar-alt" aria-hidden="true"></i>
+      <time datetime="{{ date | date_to_xmlschema }}">{{ date | date: "%B %-d, %Y" }}</time>
+    </span>
+  {% endif %}
+
+
+  {% if document.read_time and document.words %}
+    {% if document.show_date and document.date %}
+      <span class="page__meta-sep"></span>
+    {% endif %}
+    
+    {% assign words = document.content | strip_html | number_of_words %}
+    <span class="page__meta-readtime">
+      <i class="far fa-clock" aria-hidden="true"></i>
+      {% if words < 360 %}
+        1 min read
+      {% else %}
+        {{ words | divided_by: 180 }} min read
+      {% endif %}
+    </span>
+  {% endif %}
+
+
+  {% if page.url == document.url %}
+    
+    {% if (document.show_date and document.date) or (document.read_time and document.words) %}
+      <span class="page__meta-sep"></span>
+    {% endif %}
+
+    <span id="busuanzi_container_page_pv">
+      <i class="fas fa-eye" aria-hidden="true"></i>
+      <span id="busuanzi_value_page_pv"></span> Views
+    </span>
+  
+  {% endif %}
+
+</p>
