@@ -1,9 +1,9 @@
 export class PathFinder {
     constructor() {
-        this.directions = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
+        this.directions = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]; // 상하좌우
     }
 
-    // [기존] 이동 가능한 타일 목록 반환
+    // [수정됨] 이동 가능한 타일 목록 반환 (아군 통과 가능)
     getMovableTiles(unit, gridMap, allUnits) {
         let startNode = { x: unit.x, y: unit.y, dist: 0 };
         let queue = [startNode];
@@ -14,21 +14,39 @@ export class PathFinder {
 
         while (queue.length > 0) {
             let current = queue.shift();
+
+            // 이동력이 남아있다면 확장
             if (current.dist < unit.moveRange) {
                 for (let d of this.directions) {
                     let nx = current.x + d.x;
                     let ny = current.y + d.y;
 
+                    // 1. 맵 밖 체크
                     if (nx < 0 || ny < 0 || nx >= gridMap.cols || ny >= gridMap.rows) continue;
+                    
+                    // 2. 방문 체크
                     if (visited.has(`${nx},${ny}`)) continue;
-                    if (gridMap.data[ny][nx] !== 0) continue; // 장애물 체크
 
-                    // 유닛 충돌 체크
+                    // 3. 지형 체크 (0:평지 가 아니면 못감 - 나중에 비용 계산 추가 가능)
+                    if (gridMap.data[ny][nx] !== 0) continue;
+
+                    // 4. 유닛 충돌 체크 [핵심 수정]
                     let occupant = allUnits.find(u => u.x === nx && u.y === ny);
                     
+                    if (occupant) {
+                        // 적군이면: 이동 불가 (길막)
+                        if (occupant.team !== unit.team) continue;
+                        
+                        // 아군이면: 통과는 가능하지만, 멈출 수는 없음.
+                        // 따라서 queue에는 넣어서 더 먼 곳을 탐색하게 해주되,
+                        // result(도착지)에는 넣지 않음.
+                    }
+
+                    // 탐색 계속
                     visited.add(`${nx},${ny}`);
                     queue.push({ x: nx, y: ny, dist: current.dist + 1 });
 
+                    // 빈 땅일 경우에만 '최종 도착지'로 인정
                     if (!occupant) {
                         result.push({ x: nx, y: ny });
                     }
@@ -38,7 +56,7 @@ export class PathFinder {
         return result;
     }
 
-    // [신규] 특정 위치까지의 경로(Path) 반환 (BFS 활용)
+    // [수정됨] 경로 찾기 (아군 통과 가능)
     findPath(unit, targetX, targetY, gridMap, allUnits) {
         let startNode = { x: unit.x, y: unit.y, parent: null };
         let queue = [startNode];
@@ -50,7 +68,7 @@ export class PathFinder {
         while (queue.length > 0) {
             let current = queue.shift();
 
-            // 목표 도달 시 종료
+            // 목표 도달
             if (current.x === targetX && current.y === targetY) {
                 finalNode = current;
                 break;
@@ -62,27 +80,30 @@ export class PathFinder {
 
                 if (nx < 0 || ny < 0 || nx >= gridMap.cols || ny >= gridMap.rows) continue;
                 if (visited.has(`${nx},${ny}`)) continue;
-                if (gridMap.data[ny][nx] !== 0) continue; // 장애물 통과 불가
+                if (gridMap.data[ny][nx] !== 0) continue;
 
-                // 가는 길에 다른 유닛이 있으면 막힘 (단, 도착지는 이미 비어있음을 GameManager에서 확인했으므로 제외)
+                // 유닛 체크
                 let occupant = allUnits.find(u => u.x === nx && u.y === ny);
-                if (occupant && (nx !== targetX || ny !== targetY)) continue;
+                
+                // 적군이면 막힘
+                if (occupant && occupant.team !== unit.team) continue;
 
+                // 아군이면 통과 가능 (queue에 추가)
+                
                 visited.add(`${nx},${ny}`);
-                // parent를 기록해서 경로 역추적
                 queue.push({ x: nx, y: ny, parent: current });
             }
         }
 
-        // 경로 역추적 (Backtracking)
+        // 경로 역추적
         if (finalNode) {
             let path = [];
             let curr = finalNode;
-            while (curr.parent) { // 시작점(parent==null)은 제외
+            while (curr.parent) { 
                 path.push({ x: curr.x, y: curr.y });
                 curr = curr.parent;
             }
-            return path.reverse(); // 역순이므로 뒤집기
+            return path.reverse();
         }
         return [];
     }
