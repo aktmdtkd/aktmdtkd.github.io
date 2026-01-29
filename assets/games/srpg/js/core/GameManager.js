@@ -65,6 +65,16 @@ export class GameManager {
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
                 
+                // [수정됨] 제자리 클릭(대기)인지 확인
+                if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
+                    console.log("Hold position (No move)");
+                    this.movableTiles = [];
+                    // 이동 애니메이션 없이 바로 행동(공격/대기) 단계로 진입
+                    this.onMoveFinished();
+                    return;
+                }
+
+                // 다른 곳으로 이동 시
                 const path = this.pathFinder.findPath(
                     this.selectedUnit, 
                     x, y, 
@@ -72,16 +82,14 @@ export class GameManager {
                     this.units
                 );
 
-                // [핵심 수정] 경로가 진짜로 존재할 때만 이동 시작!
-                // 경로가 없으면(오류 상황) 이동하지 않고 취소 처리하거나 무시
                 if (path && path.length > 0) {
                     this.selectedUnit.moveAlong(path);
                     this.movableTiles = []; 
-                    this.isAnimating = true; // 여기서 잠금
+                    this.isAnimating = true; 
                     this.gameState = 'MOVING';
                 } else {
-                    console.warn("Path finding failed or empty path.");
-                    this.resetSelection(); // 강제로 선택 취소해서 멈춤 방지
+                    console.warn("Path finding failed.");
+                    this.resetSelection();
                 }
             } else {
                 this.resetSelection();
@@ -93,6 +101,7 @@ export class GameManager {
         if (this.gameState === 'TARGETING') {
             const targetUnit = this.getUnitAt(x, y);
             
+            // 3-1. 공격
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 if (targetUnit && targetUnit.team === 'red') {
                     this.battleSystem.executeAttack(this.selectedUnit, targetUnit);
@@ -102,6 +111,7 @@ export class GameManager {
                 }
             }
 
+            // 3-2. 대기 (자기 자신이나 빈 땅 클릭)
             if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
                 console.log("Command: Wait");
                 this.endAction();
@@ -111,7 +121,7 @@ export class GameManager {
     }
 
     onMoveFinished() {
-        this.isAnimating = false; // [중요] 애니메이션 잠금 해제
+        this.isAnimating = false; 
         this.calculateAttackRange(this.selectedUnit);
         this.gameState = 'TARGETING';
         console.log("Move finished. Now Targeting.");
@@ -162,7 +172,7 @@ export class GameManager {
         this.movableTiles = [];
         this.attackableTiles = [];
         this.gameState = 'IDLE';
-        this.isAnimating = false; // [안전장치] 리셋 시 애니메이션 락도 해제
+        this.isAnimating = false;
     }
 
     checkDeadUnits() {
