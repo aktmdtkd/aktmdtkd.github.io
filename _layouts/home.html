@@ -1,0 +1,107 @@
+---
+layout: archive
+---
+
+{{ content }}
+
+<div class="intro-section" style="margin-bottom: 3em;">
+
+  <h2 style="margin-top: 0; font-weight: bold;">마식의 서고입니다.</h2>
+
+  <p style="margin-bottom: 1.5em;">
+    Physical AI 분야를 탐구하면서 기행을 해보고 싶은 평범한 오타쿠입니다.<br>
+    제가 가진 기술 및 관심 분야는 다음과 같습니다.
+  </p>
+
+  <div style="display: flex; flex-wrap: nowrap; gap: 1em; margin-bottom: 1.5em;">
+    
+    <div style="flex: 1; min-width: 0;">
+      
+      <div style="margin-bottom: 1em;">
+        <strong style="color: #444; border-bottom: 2px solid #eee; display: inline-block; margin-bottom: 0.5em;">Tech</strong>
+        <div style="line-height: 1.6; word-break: keep-all;">
+          C/C++<br>
+          Python<br>
+          ROS2
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1em;">
+        <strong style="color: #444; border-bottom: 2px solid #eee; display: inline-block; margin-bottom: 0.5em;">Topic</strong>
+        <div style="line-height: 1.6; word-break: keep-all;">
+          Path Planning<br>
+          Deep Learning
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1em;">
+        <strong style="color: #444; border-bottom: 2px solid #eee; display: inline-block; margin-bottom: 0.5em;">Learned Tech</strong>
+        <div style="line-height: 1.6; word-break: keep-all;">
+          HTML & CSS & JS<br>
+          Java
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-width: 0;">
+      <div>
+        <strong style="color: #444; border-bottom: 2px solid #eee; display: inline-block; margin-bottom: 0.5em;">Interest</strong>
+        <div style="line-height: 1.6; word-break: keep-all;">
+          History<br>
+          Anime & Comic<br>
+          Novel<br>
+          Kantele<br>
+          Drawing<br>
+          Game<br>
+          Military
+        </div>
+      </div>
+      <div>
+        <strong style="color: #444; border-bottom: 2px solid #eee; display: inline-block; margin-bottom: 0.5em; margin-top: 1em;">Learning Topic</strong>
+        <div style="line-height: 1.6; word-break: keep-all;">
+          SLAM
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p>
+    끌리는 것이 있다면 이것 저것 해보고 싶은 사람입니다. 그 과정속에서 공유하고 싶은 것을 글로 정리해서 올리고 싶은데, 이 글을 읽는 여러분도 도움을 받을 수 있다면 더없이 좋을 것 같습니다.
+  </p>
+  
+  <hr style="margin: 2em 0;">
+
+</div>
+<h3 class="archive__subtitle">Recommended Posts</h3>
+
+{% assign recommend_list = site.posts | where: "recommended", true %}
+{% for post in recommend_list %}
+  <div class="list__item">
+    {% include archive-single.html type="list" post=post %}
+  </div>
+{% endfor %}
+
+{% if recommend_list.size == 0 %}
+  <p style="color: #999; font-size: 0.9em;">(추천 포스트가 설정되지 않았습니다)</p>
+{% endif %}
+
+
+<hr style="margin: 2em 0;">
+
+
+{% for category_item in site.categories %}
+  {% assign cat_name = category_item[0] %}
+  {% assign cat_posts = category_item[1] %}
+  {% assign post = cat_posts[0] %}
+
+  <h3 class="archive__subtitle" style="margin-top: 2em; text-transform: capitalize;">
+    Recent {{ cat_name }} Post
+  </h3>
+
+  {% if post %}
+    <div class="list__item">
+      {% include archive-single.html type="list" post=post %}
+    </div>
+  {% endif %}
+{% endfor %}
