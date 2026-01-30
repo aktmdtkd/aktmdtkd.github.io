@@ -19,8 +19,8 @@ export class GameManager {
         
         this.units = [];
         this.classes = {};
-        this.roster = []; // 전체 명단
-        this.selectedRoster = []; // 출진 명단
+        this.roster = [];
+        this.selectedRoster = [];
 
         this.gameState = 'IDLE'; 
         this.turn = 'PLAYER'; 
@@ -42,15 +42,18 @@ export class GameManager {
         this.cameraStartY = 0;
 
         this.turnIndicator = document.getElementById('turn-indicator');
+
+        // [신규] 대화 관련 변수
+        this.dialogueQueue = [];
+        this.dialogueEl = document.getElementById('dialogue-overlay');
+        this.diaNameEl = document.getElementById('dia-name');
+        this.diaTextEl = document.getElementById('dia-text');
     }
 
     async init() {
-        // 1. 클래스 데이터 먼저 로드
         await this.loadClassData();
-        // 2. 병영(로스터) 데이터 로드 및 UI 표시
         await this.loadRosterAndShowUI();
         
-        // 3. 줌 컨트롤 등 기본 설정
         this.setupInput();
         this.uiManager.setupZoomControls(
             () => this.handleZoom(10),
@@ -64,14 +67,10 @@ export class GameManager {
         this.classes = await res.json();
     }
 
-    // [신규] 병영 UI 로직
     async loadRosterAndShowUI() {
         const res = await fetch('./js/data/roster.json');
         this.roster = await res.json();
-
-        // 조조(isFixed)는 기본 선택
         this.selectedRoster = this.roster.filter(c => c.isFixed).map(c => c.id);
-
         this.renderBarracks();
     }
 
@@ -85,7 +84,6 @@ export class GameManager {
             const el = document.createElement('div');
             el.className = 'roster-item';
             
-            // 고정 멤버(조조) 처리
             if (char.isFixed) {
                 el.classList.add('fixed', 'selected');
             } else if (this.selectedRoster.includes(char.id)) {
@@ -95,14 +93,11 @@ export class GameManager {
             const className = this.classes[char.class] ? this.classes[char.class].name : char.class;
             el.innerHTML = `<span>${char.name}</span> <span style="font-size:12px; color:#aaa;">${className}</span>`;
 
-            // 클릭 이벤트
             if (!char.isFixed) {
                 el.onclick = () => {
                     if (this.selectedRoster.includes(char.id)) {
-                        // 선택 해제
                         this.selectedRoster = this.selectedRoster.filter(id => id !== char.id);
                     } else {
-                        // 선택 (4명 제한)
                         if (this.selectedRoster.length < 4) {
                             this.selectedRoster.push(char.id);
                         } else {
@@ -110,7 +105,7 @@ export class GameManager {
                             return;
                         }
                     }
-                    this.renderBarracks(); // UI 갱신
+                    this.renderBarracks();
                 };
             }
             listEl.appendChild(el);
@@ -118,25 +113,69 @@ export class GameManager {
 
         const count = this.selectedRoster.length;
         countEl.innerText = `선택: ${count} / 4`;
-        
-        // 최소 1명(조조) 이상이면 출진 가능
         deployBtn.disabled = count < 1;
         deployBtn.onclick = () => this.startBattle();
     }
 
-    // [신규] 전투 시작 (실제 게임 로딩)
     async startBattle() {
-        // UI 전환
         document.getElementById('barracks-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         
-        // 캔버스 리사이징 적용
         this.handleResize();
-
-        // 맵 데이터 로드 및 유닛 배치
         await this.loadMapAndUnits();
         
+        // [수정] 바로 게임 루프가 아니라 오프닝 대화 시작
+        this.playIntroDialogue();
         this.loop();
+    }
+
+    // [신규] 오프닝 대화 실행
+    playIntroDialogue() {
+        const script = [
+            { name: "조조", text: "네 이놈 장보야! 하늘이 두렵지 않느냐!" },
+            { name: "장보", text: "푸하하! 황천의 세상이 오고 있다! 내 불맛을 보여주마!" },
+            { name: "조조", text: "전군, 공격하라! 저 요괴를 처단하라!" }
+        ];
+        this.startDialogue(script);
+    }
+
+    startDialogue(script) {
+        this.dialogueQueue = script;
+        this.gameState = 'DIALOGUE';
+        this.dialogueEl.style.display = 'block';
+        
+        // UI 가리기
+        document.getElementById('game-ui').style.opacity = '0';
+        
+        this.advanceDialogue();
+    }
+
+    advanceDialogue() {
+        if (this.dialogueQueue.length === 0) {
+            // 대화 종료
+            this.gameState = 'IDLE';
+            this.dialogueEl.style.display = 'none';
+            document.getElementById('game-ui').style.opacity = '1';
+            
+            // 아군 턴 시작 (카메라는 조조에게)
+            this.startPlayerTurn();
+            return;
+        }
+
+        const line = this.dialogueQueue.shift();
+        this.diaNameEl.innerText = line.name;
+        this.diaNameEl.style.color = (line.name === '조조' || line.name === '곽가' || line.name === '하후돈') ? '#00ccff' : '#ff6666';
+        this.diaTextEl.innerText = line.text;
+
+        // [연출] 말하는 사람에게 카메라 포커스
+        const speaker = this.units.find(u => u.name === line.name && !u.isDead());
+        if (speaker) {
+            const viewW = this.renderer.canvas.width;
+            const viewH = this.renderer.canvas.height;
+            const cx = speaker.pixelX - (viewW / 2) + 20;
+            const cy = speaker.pixelY - (viewH / 2) + 20;
+            this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
+        }
     }
 
     async loadMapAndUnits() {
@@ -147,7 +186,6 @@ export class GameManager {
             
             this.gridMap.load(stage1);
             
-            // 1. 적군 배치 (maps.json에서 로드)
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo);
@@ -155,55 +193,34 @@ export class GameManager {
                 this.units.push(newUnit);
             });
 
-            // 2. 아군 배치 (선택된 로스터를 랜덤 위치에)
             const spawnCandidates = [];
-            // 시작 지점 후보 (예: x=1~4, y=1~4 구역)
             for(let y=1; y<=4; y++) {
                 for(let x=1; x<=4; x++) {
-                    // 벽이 아니고, 이미 유닛이 없는 곳
                     if (this.gridMap.getTerrain(x, y) === 0 && !this.getUnitAt(x, y)) {
                         spawnCandidates.push({x, y});
                     }
                 }
             }
-
-            // 랜덤 셔플
             spawnCandidates.sort(() => Math.random() - 0.5);
 
             this.selectedRoster.forEach((charId, index) => {
-                if (index >= spawnCandidates.length) return; // 자리 없으면 스킵 (혹은 에러처리)
-
+                if (index >= spawnCandidates.length) return;
                 const charData = this.roster.find(c => c.id === charId);
                 const classInfo = this.classes[charData.class];
                 const pos = spawnCandidates[index];
 
                 const newUnit = new Unit({
-                    id: charData.id,
-                    name: charData.name,
-                    class: charData.class,
-                    team: 'blue',
-                    x: pos.x,
-                    y: pos.y
+                    id: charData.id, name: charData.name, class: charData.class, team: 'blue',
+                    x: pos.x, y: pos.y
                 }, classInfo);
-                
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
 
-            // 카메라를 조조(또는 첫 아군)에게 맞춤
-            const mainChar = this.units.find(u => u.team === 'blue');
-            if (mainChar) {
-                const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
-                const cy = mainChar.pixelY - (this.renderer.canvas.height / 2) + 20;
-                this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
-            }
-
         } catch (e) {
-            console.error("Map load failed", e);
         }
     }
 
-    // --- 기존 게임 로직들 (Input, Loop 등) ---
     handleResize() {
         const wrapper = document.querySelector('.game-wrapper');
         const w = wrapper.clientWidth;
@@ -232,15 +249,11 @@ export class GameManager {
         this.units.forEach(u => {
             u.tileSize = newSize; 
             if (!u.isMoving) {
-                u.pixelX = u.x * newSize;
-                u.pixelY = u.y * newSize;
-                u.targetPixelX = u.x * newSize;
-                u.targetPixelY = u.y * newSize;
+                u.pixelX = u.x * newSize; u.pixelY = u.y * newSize;
+                u.targetPixelX = u.x * newSize; u.targetPixelY = u.y * newSize;
             } else {
-                u.pixelX *= ratio;
-                u.pixelY *= ratio;
-                u.targetPixelX *= ratio;
-                u.targetPixelY *= ratio;
+                u.pixelX *= ratio; u.pixelY *= ratio;
+                u.targetPixelX *= ratio; u.targetPixelY *= ratio;
             }
         });
         this.renderer.updateCamera(newCenterX - viewW / 2, newCenterY - viewH / 2, this.gridMap.cols, this.gridMap.rows);
@@ -252,11 +265,9 @@ export class GameManager {
         let clientX = evt.clientX;
         let clientY = evt.clientY;
         if (evt.touches && evt.touches.length > 0) {
-            clientX = evt.touches[0].clientX;
-            clientY = evt.touches[0].clientY;
+            clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY;
         } else if (evt.changedTouches && evt.changedTouches.length > 0) {
-            clientX = evt.changedTouches[0].clientX;
-            clientY = evt.changedTouches[0].clientY;
+            clientX = evt.changedTouches[0].clientX; clientY = evt.changedTouches[0].clientY;
         }
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
@@ -281,6 +292,13 @@ export class GameManager {
 
     handleStart(e) {
         if (e.cancelable) e.preventDefault();
+        
+        // [대화 모드] 클릭 시 대화 진행
+        if (this.gameState === 'DIALOGUE') {
+            this.advanceDialogue();
+            return;
+        }
+
         if (this.gameOver) { location.reload(); return; }
         if (this.gameState === 'ACTION_SELECT') return;
         this.renderer.canvas.style.cursor = 'grabbing';
@@ -295,7 +313,7 @@ export class GameManager {
 
     handleMove(e) {
         if (e.cancelable) e.preventDefault();
-        if (this.gameOver) return;
+        if (this.gameOver || this.gameState === 'DIALOGUE') return;
         const pos = this.getInputPos(e);
         if (this.isInputDown) {
             const dx = pos.x - this.dragStartX;
@@ -327,6 +345,8 @@ export class GameManager {
         if (e.cancelable) e.preventDefault();
         this.isInputDown = false;
         this.renderer.canvas.style.cursor = 'crosshair';
+        
+        if (this.gameState === 'DIALOGUE') return;
         if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
         if (this.isDragging) { this.isDragging = false; return; }
         if (this.turn === 'ENEMY' || this.isAnimating) return;
