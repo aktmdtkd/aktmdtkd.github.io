@@ -12,65 +12,36 @@ export class Renderer {
         // 애니메이션 프레임
         this.frameCount = 0;
         this.spriteCycle = 0; // 0, 1, 2, 1...
-        this.spriteFrame = 1; // 실제 보여줄 프레임 인덱스
+        this.spriteFrame = 1; // 1(차렷)이 기본
 
         this.loadImages();
     }
 
     loadImages() {
         // 사용할 캐릭터 이미지 파일명 목록
-        // assets/images/units/ 폴더에 이 이름의 파일들이 있어야 함
+        // 파일명과 assets/images/units/ 안의 파일명이 정확히 일치해야 합니다. (대소문자 구별)
         const charNames = ['caocao', 'enemy', 'guojia']; 
         
         charNames.forEach(name => {
             const img = new Image();
-            // jpg여도 상관없음 (코드가 투명화 처리)
-            // 확장자는 일단 png로 가정하되, 실제 파일이 jpg라면 아래 .png를 .jpg로 수정하세요.
-            img.src = `./assets/images/units/${name}.png`; 
+            // 확장자가 png가 아니라 jpg라면 여기서 .jpg로 고쳐주세요
+            img.src = `./assets/images/units/${name}.png`;
             
+            // [수정] 복잡한 처리 없이 단순히 로딩만 함 (가장 안전함)
             img.onload = () => {
-                // [핵심] 로딩 완료 시 배경 투명화 처리 실행
-                this.images[name] = this.removeWhiteBackground(img);
+                this.images[name] = img;
+                console.log(`Image loaded: ${name}`);
+            };
+            img.onerror = () => {
+                console.error(`Failed to load image: ${name}`);
             };
         });
-    }
-
-    // [신규] 흰색 배경 제거 함수 (누끼 따기)
-    removeWhiteBackground(img) {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = img.width;
-        tempCanvas.height = img.height;
-        const ctx = tempCanvas.getContext('2d');
-        
-        ctx.drawImage(img, 0, 0);
-        
-        const imgData = ctx.getImageData(0, 0, img.width, img.height);
-        const data = imgData.data;
-        
-        // 픽셀 순회 (R, G, B, A)
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i+1];
-            const b = data[i+2];
-            
-            // 흰색에 가까우면 (RGB가 모두 230 이상이면)
-            if (r > 230 && g > 230 && b > 230) {
-                data[i+3] = 0; // Alpha(투명도)를 0으로 설정
-            }
-        }
-        
-        ctx.putImageData(imgData, 0, 0);
-        
-        // 처리된 이미지를 새 Image 객체로 반환
-        const newImg = new Image();
-        newImg.src = tempCanvas.toDataURL();
-        return newImg;
     }
 
     resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
-        this.ctx.imageSmoothingEnabled = false; 
+        this.ctx.imageSmoothingEnabled = false; // 도트가 선명하게 보이도록 설정
     }
 
     setTileSize(size) {
@@ -87,6 +58,7 @@ export class Renderer {
         let camX = targetX; 
         let camY = targetY;
 
+        // 맵이 화면보다 작을 때는 중앙 정렬, 클 때는 클램핑
         if (maxX > 0) camX = Math.max(0, Math.min(camX, maxX));
         else camX = -(viewW - (mapCols * this.tileSize)) / 2;
 
@@ -101,9 +73,9 @@ export class Renderer {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 걷기 애니메이션 사이클
+        // 걷기 애니메이션 사이클 (약 15프레임마다 갱신)
         this.frameCount++;
-        if (this.frameCount > 12) { // 속도 조절
+        if (this.frameCount > 15) { 
             this.frameCount = 0;
             const cycle = [0, 1, 2, 1]; // 왼발 - 차렷 - 오른발 - 차렷
             this.spriteCycle = (this.spriteCycle + 1) % 4;
@@ -112,8 +84,11 @@ export class Renderer {
     }
 
     drawMap(gridMap) {
+        if (!gridMap || gridMap.cols === 0) return;
+
         const startCol = Math.floor(this.camera.x / this.tileSize);
         const startRow = Math.floor(this.camera.y / this.tileSize);
+        // 화면 밖 여유분(+1~2)까지 그려서 끊김 방지
         const endCol = startCol + (this.canvas.width / this.tileSize) + 1;
         const endRow = startRow + (this.canvas.height / this.tileSize) + 1;
 
@@ -124,11 +99,12 @@ export class Renderer {
                     const px = Math.floor(x * this.tileSize - this.camera.x);
                     const py = Math.floor(y * this.tileSize - this.camera.y);
 
-                    if (terrain === 1) this.ctx.fillStyle = '#654321'; 
-                    else if (terrain === 2) this.ctx.fillStyle = '#3366cc';
-                    else this.ctx.fillStyle = '#339933';
+                    // 지형 색상 (상수는 constants.js 참조하지만 여기선 하드코딩으로 안전하게)
+                    if (terrain === 1) this.ctx.fillStyle = '#8B4513'; // 산 (갈색)
+                    else if (terrain === 2) this.ctx.fillStyle = '#4169E1'; // 강 (파란색)
+                    else this.ctx.fillStyle = '#228B22'; // 평지 (녹색)
                     
-                    this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize);
+                    this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize); // 약간 겹치게 그려서 틈새 방지
                     this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
                     this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
                 }
@@ -155,6 +131,7 @@ export class Renderer {
     }
 
     drawUnits(units) {
+        // Y좌표 순서로 정렬 (아래 있는 유닛이 위에 그려지도록)
         const sortedUnits = [...units].sort((a, b) => a.pixelY - b.pixelY);
 
         sortedUnits.forEach(unit => {
@@ -163,20 +140,17 @@ export class Renderer {
             const px = Math.floor(unit.pixelX + unit.offsetX - this.camera.x);
             const py = Math.floor(unit.pixelY + unit.offsetY - this.camera.y);
 
-            // 이미지 찾기 (이름 매칭)
+            // 이미지 찾기
             let img = null;
-            // 1. 유닛 이름이 '조조'면 'caocao' 이미지 사용 (임시 매핑)
             if (unit.name === '조조') img = this.images['caocao'];
-            // 2. 적군이면 'enemy'
             else if (unit.team === 'red') img = this.images['enemy'];
-            // 3. 없으면 기본
-            else img = this.images['caocao']; 
+            else img = this.images['caocao']; // 기본값
 
-            // 이미지가 로드되었으면 그리기
+            // 이미지가 로드되었고 유효하다면 그리기
             if (img && img.complete && img.naturalWidth !== 0) {
                 this.drawSprite(this.ctx, img, unit, px, py);
             } else {
-                // 대체 박스
+                // 이미지가 없으면 네모/동그라미 그리기 (Fallback)
                 this.ctx.fillStyle = unit.team === 'blue' ? '#4444ff' : '#ff4444';
                 if (unit.isActionDone) this.ctx.fillStyle = '#555555';
                 
@@ -198,45 +172,37 @@ export class Renderer {
     }
 
     drawSprite(ctx, img, unit, x, y) {
-        // [중요] 이미지가 4열인지 3열인지 자동 감지
-        // 보통 가로:세로 비율로 추측하거나, 일단 4열로 가정
-        // 아까 보여준 이미지는 4열이었음.
-        const cols = 4; // 가져오신 이미지가 4칸짜리라서 4로 설정
-        const rows = 4; 
+        // 이미지가 가로 3칸인지 4칸인지 확인
+        // 보통 가로:세로 비율로 추측 가능 (3:4 또는 4:4)
+        const ratio = img.width / img.height;
+        let cols = 3;
+        
+        // 가로가 세로보다 비슷하거나 길면 4열일 확률이 높음 (가져오신 이미지는 4열이었음)
+        // 하지만 잘라오신 이미지가 3열이면 3으로 동작
+        if (ratio >= 1.0) cols = 4; // 가로 4칸짜리면 4로 설정
+        else cols = 3; 
 
+        const rows = 4; 
         const frameW = img.width / cols;
         const frameH = img.height / rows;
 
-        // 방향 (0:하, 1:좌, 2:우, 3:상) -> Unit.js에서 direction 가져옴
-        // 만약 direction이 없으면 0(정면)
+        // Unit의 방향 (0:하, 1:좌, 2:우, 3:상)
         let dir = unit.direction !== undefined ? unit.direction : 0;
         
-        // 애니메이션 프레임 결정
-        // 정지 상태면 0번(차렷), 이동 중이면 spriteFrame(0~2)
-        // 4열 이미지 구조: [걷기1] [차렷] [걷기2] [차렷] 이라고 가정하면
-        // 차렷=1, 걷기=0,2
-        
-        let colIndex = 1; // 기본 차렷 (2번째 칸)
-
+        // 애니메이션 프레임 (이동 중일 때만)
+        let colIndex = 1; // 차렷
         if (unit.isMoving) {
-            // spriteFrame: 0, 1, 2
-            // 이미지 매핑: 0->0열, 1->1열, 2->2열
-            colIndex = this.spriteFrame;
-            
-            // 만약 4열 이미지가 [차렷][걷기][차렷][걷기] 식이 아니라
-            // [걷기][차렷][걷기][차렷] 이라면 인덱스 조정 필요.
-            // 보통 RPG Maker XP는 [차렷][걷기][걷기][걷기] 가 아니라 [걷기][차렷][걷기][차렷] 등 다양함.
-            // 일단 아까 이미지(caocao2) 기준:
-            // 1열:차렷? 아니면 걷기? 육안상 2열이 차렷 같았음.
-            // 안전하게: 0(걷기), 1(차렷), 2(걷기) 로 매핑
+            colIndex = this.spriteFrame; // 0, 1, 2
         }
 
+        // 화면에 그릴 크기 (타일보다 20% 크게)
         const drawW = this.tileSize * 1.2; 
         const scale = drawW / frameW;
         const drawH = frameH * scale;
 
+        // 위치 보정 (발바닥이 타일 아래에 닿게)
         const drawX = x + (this.tileSize - drawW) / 2;
-        const drawY = y + (this.tileSize - drawH) - 4; // 위치 미세 조정
+        const drawY = y + (this.tileSize - drawH) - 4;
 
         ctx.drawImage(
             img,
