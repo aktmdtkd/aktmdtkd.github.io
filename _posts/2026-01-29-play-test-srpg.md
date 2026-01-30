@@ -14,9 +14,7 @@ HTML5와 JS로 만들었습니다.
 
 사용 방법은 나중에 정리해서 적겠습니다.
 
-일단은 스마트폰 보다는 PC로 플레이하시는게 더 적합합니다.
-
-아직 좌우 배열을 잡아두지 않았습니다.
+현재 스마트폰과 PC모두 플레이하실 수 있습니다.
 
 <div style="width: 100%; height: 500px; text-align: center; border: 2px solid #bbada0; border-radius: 10px; overflow: hidden;">
   <iframe 
