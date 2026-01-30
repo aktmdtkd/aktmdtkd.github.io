@@ -32,6 +32,8 @@ export class GameManager {
         this.lastHoverX = -1;
         this.lastHoverY = -1;
 
+        // 드래그 및 입력 상태 변수
+        this.isMouseDown = false;
         this.isDragging = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
@@ -48,10 +50,15 @@ export class GameManager {
     setupInput() {
         const canvas = this.renderer.canvas;
 
+        // 1. 마우스 누름 (드래그 시작 준비)
         canvas.addEventListener('mousedown', (e) => {
+            // 브라우저 기본 드래그 방지
+            e.preventDefault(); 
+
             if (this.gameOver) { location.reload(); return; }
             if (this.gameState === 'ACTION_SELECT') return;
 
+            this.isMouseDown = true;
             this.isDragging = false;
             this.dragStartX = e.clientX;
             this.dragStartY = e.clientY;
@@ -59,24 +66,36 @@ export class GameManager {
             this.cameraStartY = this.renderer.camera.y;
         });
 
+        // 2. 마우스 이동 (드래그 중인지 판단 후 카메라 이동)
         canvas.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+
+            // 게임 오버 상태면 무시
             if (this.gameOver) return;
 
-            if (e.buttons === 1) { 
+            // 마우스를 누른 상태에서만 드래그 로직 동작
+            if (this.isMouseDown) {
                 const dx = e.clientX - this.dragStartX;
                 const dy = e.clientY - this.dragStartY;
 
-                if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || this.isDragging) {
+                // 5픽셀 이상 움직였을 때만 드래그로 간주 (클릭 미스 방지)
+                if (!this.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                     this.isDragging = true;
+                }
+
+                if (this.isDragging) {
+                    // 카메라 이동: 시작 위치에서 마우스 이동량만큼 뺌 (Grab & Drag 느낌)
                     const newCamX = this.cameraStartX - dx;
                     const newCamY = this.cameraStartY - dy;
                     
                     this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
-                    return; 
+                    return; // 드래그 중에는 호버링 효과 갱신 안 함
                 }
             }
 
+            // --- 호버링 로직 (드래그 중이 아닐 때만) ---
             const rect = canvas.getBoundingClientRect();
+            // 월드 좌표 = 화면 좌표 + 카메라 좌표
             const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
             const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
             
@@ -93,9 +112,14 @@ export class GameManager {
             if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
         });
 
+        // 3. 마우스 뗌 (클릭 처리 or 드래그 종료)
         canvas.addEventListener('mouseup', async (e) => {
+            e.preventDefault();
+            this.isMouseDown = false;
+
             if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
 
+            // 드래그였다면 클릭 로직 실행하지 않고 종료
             if (this.isDragging) {
                 this.isDragging = false;
                 return;
@@ -113,6 +137,12 @@ export class GameManager {
             await this.handleClick(tx, ty);
         });
 
+        // 4. 마우스가 캔버스 밖으로 나감 (드래그 취소 안전장치)
+        canvas.addEventListener('mouseleave', () => {
+            this.isMouseDown = false;
+            this.isDragging = false;
+        });
+
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (this.turn === 'PLAYER' && !this.isAnimating && !this.gameOver) {
@@ -126,6 +156,7 @@ export class GameManager {
     }
 
     async handleClick(x, y) {
+        // [1] 유닛 선택
         if (this.gameState === 'IDLE') {
             const clickedUnit = this.getUnitAt(x, y);
             if (clickedUnit && clickedUnit.team === 'blue' && !clickedUnit.isActionDone) {
@@ -136,6 +167,7 @@ export class GameManager {
             return;
         }
 
+        // [2] 이동
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
                 if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
@@ -158,6 +190,7 @@ export class GameManager {
             return;
         }
 
+        // [3] 타겟팅 (공격/스킬)
         if (this.gameState === 'TARGETING') {
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 this.isAnimating = true;
@@ -271,6 +304,7 @@ export class GameManager {
         this.turn = 'PLAYER';
         this.units.forEach(u => u.resetTurn());
         
+        // 턴 시작 시 조조에게 카메라 포커싱
         const mainChar = this.units.find(u => u.name === '조조' && !u.isDead());
         if(mainChar) {
             const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
@@ -315,13 +349,17 @@ export class GameManager {
             const mapRes = await fetch('./js/data/maps.json');
             const mapJson = await mapRes.json();
             const stage1 = mapJson.stage1;
+            
+            // GridMap 로드 (cols, rows 설정됨)
             this.gridMap.load(stage1);
+            
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo);
                 this.units.push(newUnit);
             });
             
+            // 데이터 로드 완료 후 카메라 초기 위치 설정
             const mainChar = this.units.find(u => u.name === '조조');
             if (mainChar) {
                 const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
@@ -329,6 +367,7 @@ export class GameManager {
                 this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
             }
         } catch (e) {
+            // Error handling
         }
     }
 

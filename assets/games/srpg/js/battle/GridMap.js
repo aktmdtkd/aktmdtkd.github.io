@@ -2,7 +2,7 @@ export class GridMap {
     constructor() {
         this.rows = 0;
         this.cols = 0;
-        this.data = [];
+        this.data = []; // 0:평지, 1:산, 2:물
     }
 
     load(mapData) {

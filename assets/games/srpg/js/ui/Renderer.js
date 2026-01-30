@@ -15,13 +15,22 @@ export class Renderer {
         this.camera.x = x;
         this.camera.y = y;
 
+        // 화면 밖으로 나가지 않게 제한 (Clamping)
         if (this.camera.x < 0) this.camera.x = 0;
         if (this.camera.y < 0) this.camera.y = 0;
-        if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
-        if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
+        
+        // 맵이 화면보다 클 때만 제한 적용
+        if (mapW > viewW) {
+            if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
+        } else {
+            this.camera.x = 0; // 맵이 작으면 0 고정
+        }
 
-        if (mapW < viewW) this.camera.x = 0;
-        if (mapH < viewH) this.camera.y = 0;
+        if (mapH > viewH) {
+            if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
+        } else {
+            this.camera.y = 0; // 맵이 작으면 0 고정
+        }
     }
 
     clear() {
@@ -36,6 +45,7 @@ export class Renderer {
                 const px = x * this.tileSize - this.camera.x;
                 const py = y * this.tileSize - this.camera.y;
 
+                // 화면 밖 타일은 그리지 않음 (성능 최적화)
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) continue;
 
