@@ -4,31 +4,39 @@
     "moveRange": 4,
     "attackRange": 1,
     "hp": 100,
+    "mp": 20,
     "atk": 30,
-    "def": 20
+    "def": 20,
+    "int": 15
   },
   "cavalry": {
     "name": "기병",
     "moveRange": 6,
     "attackRange": 1,
     "hp": 120,
+    "mp": 10,
     "atk": 35,
-    "def": 15
+    "def": 15,
+    "int": 10
   },
   "archer": {
     "name": "궁병",
     "moveRange": 4,
     "attackRange": 2,
     "hp": 80,
+    "mp": 30,
     "atk": 25,
-    "def": 10
+    "def": 10,
+    "int": 20
   },
   "mage": {
     "name": "책사",
     "moveRange": 3,
-    "attackRange": 2,
+    "attackRange": 1,
     "hp": 60,
-    "atk": 40,
-    "def": 5
+    "mp": 100,
+    "atk": 10,
+    "def": 5,
+    "int": 40
   }
 }

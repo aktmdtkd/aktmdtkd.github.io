@@ -9,8 +9,6 @@ export class Unit {
         this.tileSize = 40;
         this.pixelX = this.x * this.tileSize;
         this.pixelY = this.y * this.tileSize;
-        
-        // [추가] 공격 모션용 오프셋 (흔들림 효과)
         this.offsetX = 0;
         this.offsetY = 0;
         
@@ -23,22 +21,28 @@ export class Unit {
         this.className = classInfo.name;
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
+        
+        // [수정] 스탯 초기화 (MP, INT 추가)
         this.maxHp = classInfo.hp;
         this.currentHp = classInfo.hp;
+        this.maxMp = classInfo.mp || 0;
+        this.currentMp = this.maxMp;
+        
         this.atk = classInfo.atk;
         this.def = classInfo.def;
+        this.int = classInfo.int || 10; // 정신력
 
         this.isActionDone = false;
     }
 
-    // [추가] 공격 모션 시작 (대상 방향으로 살짝 튕김)
     attackBump(targetX, targetY) {
         const dx = targetX - this.x;
         const dy = targetY - this.y;
-        // 방향 벡터 정규화 및 반동 크기 설정 (20px)
         const distance = Math.sqrt(dx*dx + dy*dy);
-        this.offsetX = (dx / distance) * 20;
-        this.offsetY = (dy / distance) * 20;
+        if(distance > 0) {
+            this.offsetX = (dx / distance) * 20;
+            this.offsetY = (dy / distance) * 20;
+        }
     }
 
     moveAlong(path) {
@@ -59,9 +63,8 @@ export class Unit {
     }
 
     update() {
-        // [추가] 공격 모션 복귀 (오프셋을 서서히 0으로)
         if (this.offsetX !== 0 || this.offsetY !== 0) {
-            this.offsetX *= 0.8; // 매 프레임 20%씩 감소
+            this.offsetX *= 0.8;
             this.offsetY *= 0.8;
             if (Math.abs(this.offsetX) < 0.5) this.offsetX = 0;
             if (Math.abs(this.offsetY) < 0.5) this.offsetY = 0;
@@ -105,7 +108,27 @@ export class Unit {
     }
 
     moveTo(x, y) { this.x = x; this.y = y; this.pixelX = x*40; this.pixelY = y*40; }
-    takeDamage(amount) { this.currentHp -= amount; if (this.currentHp < 0) this.currentHp = 0; }
+    
+    takeDamage(amount) { 
+        this.currentHp -= amount; 
+        if (this.currentHp < 0) this.currentHp = 0; 
+    }
+    
+    // [추가] 힐 받기
+    heal(amount) {
+        this.currentHp += amount;
+        if (this.currentHp > this.maxHp) this.currentHp = this.maxHp;
+    }
+
+    // [추가] MP 사용
+    useMp(amount) {
+        if (this.currentMp >= amount) {
+            this.currentMp -= amount;
+            return true;
+        }
+        return false;
+    }
+
     isDead() { return this.currentHp <= 0; }
     resetTurn() { this.isActionDone = false; }
     endAction() { this.isActionDone = true; }

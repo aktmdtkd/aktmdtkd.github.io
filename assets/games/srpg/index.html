@@ -5,97 +5,98 @@
     <title>SRPG Engine</title>
     <style>
         body {
-            background: #202020;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
+            background: #202020; margin: 0; display: flex;
+            justify-content: center; align-items: center; height: 100vh;
+            color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden;
         }
-        
         .game-wrapper {
-            position: relative;
-            width: 640px;
-            height: 480px;
+            position: relative; width: 640px; height: 480px;
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
         }
+        canvas { background: #000; display: block; cursor: crosshair; }
 
-        canvas {
-            background: #000;
-            display: block;
-            cursor: crosshair; /* 마우스 커서 변경 */
-        }
-
+        /* 하단 상태창 */
         #game-ui {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 100px;
-            background: rgba(0, 0, 0, 0.85);
-            border-top: 2px solid #555;
-            box-sizing: border-box;
-            display: flex;
-            padding: 10px 20px;
-            justify-content: space-between;
-            align-items: center;
-            pointer-events: none;
-            z-index: 10; /* 캔버스보다 위에 오도록 명시 */
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 100px;
+            background: rgba(0, 0, 0, 0.85); border-top: 2px solid #555;
+            box-sizing: border-box; display: flex; padding: 10px 20px;
+            justify-content: space-between; align-items: center;
+            pointer-events: none; z-index: 10;
         }
-
-        .unit-info {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            width: 200px;
-        }
+        .unit-info { display: flex; flex-direction: column; gap: 5px; width: 200px; }
         .unit-name { font-size: 18px; font-weight: bold; color: #ffcc00; }
         .unit-class { font-size: 12px; color: #aaa; }
-        
-        .hp-bar-bg {
-            width: 100%; height: 10px; background: #333;
-            border: 1px solid #555; border-radius: 5px; overflow: hidden;
-        }
-        .hp-bar-fill {
-            width: 100%; height: 100%; background: #00ff00; transition: width 0.2s ease;
-        }
-        .hp-text { font-size: 12px; text-align: right; }
+        .hp-bar-bg { width: 100%; height: 8px; background: #333; border: 1px solid #555; border-radius: 4px; overflow: hidden; margin-bottom: 2px;}
+        .hp-bar-fill { width: 100%; height: 100%; background: #00ff00; transition: width 0.2s; }
+        /* MP 바 추가 */
+        .mp-bar-bg { width: 100%; height: 6px; background: #222; border: 1px solid #444; border-radius: 3px; overflow: hidden; }
+        .mp-bar-fill { width: 100%; height: 100%; background: #0088ff; transition: width 0.2s; }
+        .status-text { font-size: 11px; text-align: right; color: #ddd; }
 
-        .stats-info { display: flex; gap: 20px; font-size: 14px; font-weight: bold; }
+        .stats-info { display: flex; gap: 15px; font-size: 14px; font-weight: bold; }
+        .stat-box { text-align: center; }
         .stat-box span { display: block; font-size: 10px; color: #aaa; font-weight: normal; }
 
         .terrain-info { text-align: right; width: 120px; }
         .terrain-name { font-size: 16px; font-weight: bold; color: #88ccff; }
-        .terrain-buff { font-size: 12px; color: #aaa; }
+
+        /* [신규] 행동 선택 메뉴 */
+        #action-menu, #skill-menu {
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(40, 40, 40, 0.95);
+            border: 2px solid #ffcc00; border-radius: 8px;
+            padding: 10px; display: none; flex-direction: column; gap: 8px;
+            z-index: 20; min-width: 150px;
+        }
+        .menu-btn {
+            background: #555; color: white; border: 1px solid #777;
+            padding: 10px; cursor: pointer; text-align: center; font-size: 14px;
+            transition: background 0.2s;
+        }
+        .menu-btn:hover { background: #777; }
+        .menu-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
+        .menu-title { text-align: center; font-size: 12px; color: #ffcc00; margin-bottom: 5px; }
+
     </style>
 </head>
 <body>
-
     <div class="game-wrapper">
         <canvas id="gameCanvas" width="640" height="480"></canvas>
         
+        <div id="action-menu">
+            <div class="menu-title">행동 선택</div>
+            <button class="menu-btn" id="btn-attack">공격</button>
+            <button class="menu-btn" id="btn-magic">책략</button>
+            <button class="menu-btn" id="btn-wait">대기</button>
+        </div>
+
+        <div id="skill-menu">
+            <div class="menu-title">책략 선택</div>
+            <button class="menu-btn" onclick="cancelSkill()">취소</button>
+        </div>
+
         <div id="game-ui">
             <div class="unit-info" id="ui-unit-panel" style="opacity: 0;">
-                <div class="unit-name" id="ui-name">유닛 이름</div>
-                <div class="unit-class" id="ui-class">직업</div>
-                <div class="hp-bar-bg">
-                    <div class="hp-bar-fill" id="ui-hp-bar"></div>
-                </div>
-                <div class="hp-text" id="ui-hp-text">100 / 100</div>
+                <div class="unit-name" id="ui-name">-</div>
+                <div class="unit-class" id="ui-class">-</div>
+                
+                <div class="hp-bar-bg"><div class="hp-bar-fill" id="ui-hp-bar"></div></div>
+                <div class="status-text" id="ui-hp-text">HP -/-</div>
+                
+                <div class="mp-bar-bg"><div class="mp-bar-fill" id="ui-mp-bar"></div></div>
+                <div class="status-text" id="ui-mp-text">MP -/-</div>
             </div>
 
             <div class="stats-info" id="ui-stats-panel" style="opacity: 0;">
-                <div class="stat-box"><span>공격력</span><div id="ui-atk">0</div></div>
-                <div class="stat-box"><span>방어력</span><div id="ui-def">0</div></div>
-                <div class="stat-box"><span>이동력</span><div id="ui-move">0</div></div>
+                <div class="stat-box"><span>공격</span><div id="ui-atk">0</div></div>
+                <div class="stat-box"><span>정신</span><div id="ui-int">0</div></div>
+                <div class="stat-box"><span>방어</span><div id="ui-def">0</div></div>
             </div>
 
             <div class="terrain-info">
-                <div class="terrain-name" id="ui-terrain">평지</div>
-                <div class="terrain-buff" id="ui-terrain-effect">효과 없음</div>
+                <div class="terrain-name" id="ui-terrain">-</div>
+                <div id="ui-terrain-effect" style="font-size:12px; color:#aaa;">-</div>
             </div>
         </div>
     </div>
@@ -104,6 +105,9 @@
         import { GameManager } from './js/core/GameManager.js';
         const game = new GameManager();
         game.init();
+        
+        // 전역 함수로 취소 버튼 연결
+        window.cancelSkill = () => game.openActionMenu(); 
     </script>
 </body>
 </html>
