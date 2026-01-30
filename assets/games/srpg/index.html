@@ -22,21 +22,14 @@
             width: 100%; height: 100%; background: #222; z-index: 100;
         }
         .barracks-container {
-            width: 95%; 
-            max-width: 640px; /* [변경] 2단 배치를 위해 폭을 좀 더 넓게 */
-            background: #333; padding: 20px;
+            width: 95%; max-width: 640px; background: #333; padding: 20px;
             border-radius: 10px; border: 2px solid #555; text-align: center;
             display: flex; flex-direction: column; height: 80%;
         }
-        
-        /* [핵심 수정] 반응형 그리드 */
         .roster-list {
             flex: 1; overflow-y: auto; margin: 20px 0;
-            display: grid; 
-            grid-template-columns: repeat(2, 1fr); /* 기본: 2단 */
-            gap: 10px;
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
         }
-
         .roster-item {
             background: #444; padding: 10px; border-radius: 5px;
             border: 2px solid transparent; display: flex; justify-content: space-between; align-items: center;
@@ -67,15 +60,30 @@
         .item-row:hover { background: #555; }
         .item-name { font-weight: bold; color: #ffcc00; }
         .item-desc { font-size: 11px; color: #aaa; }
-        .tier-badge {
-            background: #666; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; margin-right: 5px;
-        }
+        .tier-badge { background: #666; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; margin-right: 5px; }
 
         .deploy-btn {
             padding: 15px 30px; font-size: 18px; font-weight: bold;
             background: #ffcc00; color: #000; border: none; border-radius: 5px; cursor: pointer;
         }
         .deploy-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        /* [신규] 인게임 토스트 메시지 (경고 등) */
+        #game-toast {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #ff4444; color: #ffcccc;
+            padding: 10px 20px; border-radius: 30px;
+            font-size: 14px; font-weight: bold;
+            display: none; z-index: 200; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            white-space: nowrap;
+            animation: popIn 0.2s ease-out;
+        }
+        @keyframes popIn {
+            from { transform: translate(-50%, 10px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
 
         /* 기타 UI */
         #dialogue-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(0,0,0,0.85); border: 2px solid #fff; border-radius: 8px; padding: 15px; display: none; z-index: 50; cursor: pointer; }
@@ -97,16 +105,11 @@
         .stats-info { display: flex; gap: 8px; font-size: 12px; font-weight: bold; width: 35%; justify-content: center; }
         .terrain-info { text-align: right; width: 25%; }
         
-        /* [핵심 수정] 모바일 대응 미디어 쿼리 */
         @media (max-width: 600px) { 
             .stats-info { display: none; } 
             .unit-info { width: 60%; } 
             .terrain-info { width: 35%; }
-            
-            /* 좁은 화면에서는 1단으로 변경 */
-            .roster-list {
-                grid-template-columns: 1fr;
-            }
+            .roster-list { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -132,6 +135,8 @@
         <div id="game-screen">
             <canvas id="gameCanvas"></canvas>
             
+            <div id="game-toast">안내 메시지</div>
+
             <div id="dialogue-overlay">
                 <div class="dialogue-name" id="dia-name">이름</div>
                 <div class="dialogue-text" id="dia-text">대사 내용...</div>

@@ -45,6 +45,10 @@ export class GameManager {
         this.dialogueEl = document.getElementById('dialogue-overlay');
         this.diaNameEl = document.getElementById('dia-name');
         this.diaTextEl = document.getElementById('dia-text');
+
+        // [신규] 토스트 메시지 관련
+        this.toastEl = document.getElementById('game-toast');
+        this.toastTimer = null;
     }
 
     async init() {
@@ -179,6 +183,20 @@ export class GameManager {
         await this.loadMapAndUnits();
         this.playIntroDialogue();
         this.loop();
+    }
+
+    // [신규] 토스트 메시지 출력
+    showToast(message) {
+        this.toastEl.innerText = message;
+        this.toastEl.style.display = 'block';
+        
+        // 기존 타이머 취소
+        if (this.toastTimer) clearTimeout(this.toastTimer);
+        
+        // 1.5초 후 사라짐
+        this.toastTimer = setTimeout(() => {
+            this.toastEl.style.display = 'none';
+        }, 1500);
     }
 
     playIntroDialogue() {
@@ -407,48 +425,45 @@ export class GameManager {
         this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait());
     }
     openSkillMenu() { this.uiManager.showSkillMenu(this.selectedUnit, (skillId) => this.selectSkill(skillId)); }
-    
-    // [수정] 공격 범위 체크 로직 추가
+
+    // [수정] 알림 창 사용 (alert 대체)
     selectAttack() { 
         this.selectedAction = { type: 'attack' }; 
         this.calculateRange(this.selectedUnit.attackRange);
         
-        // 범위 내 적이 있는지 확인
         const hasEnemy = this.attackableTiles.some(tile => {
             const u = this.getUnitAt(tile.x, tile.y);
             return u && u.team === 'red';
         });
 
         if (!hasEnemy) {
-            alert("범위 내에 적이 없습니다.");
-            this.attackableTiles = []; // 범위 표시 지움
-            this.openActionMenu(); // 메뉴 다시 열기
+            this.showToast("범위 내에 적이 없습니다!"); // [수정]
+            this.attackableTiles = []; 
+            this.openActionMenu(); 
             return;
         }
 
         this.gameState = 'TARGETING'; 
     }
 
-    // [수정] 스킬 범위/대상 체크 로직 추가
     selectSkill(skillId) { 
         this.selectedAction = { type: 'skill', id: skillId }; 
         const skill = SKILLS[skillId]; 
         this.calculateRange(skill.range); 
         
-        // 범위 내 유효한 대상이 있는지 확인
         const hasTarget = this.attackableTiles.some(tile => {
             const u = this.getUnitAt(tile.x, tile.y);
-            if (!u) return false; // 유닛 없음
+            if (!u) return false;
 
             if (skill.type === 'heal') {
-                return u.team === 'blue'; // 힐은 아군만
+                return u.team === 'blue'; 
             } else {
-                return u.team === 'red'; // 공격은 적군만
+                return u.team === 'red'; 
             }
         });
 
         if (!hasTarget) {
-            alert("범위 내에 유효한 대상이 없습니다.");
+            this.showToast("범위 내에 유효한 대상이 없습니다!"); // [수정]
             this.attackableTiles = [];
             this.openActionMenu();
             return;
