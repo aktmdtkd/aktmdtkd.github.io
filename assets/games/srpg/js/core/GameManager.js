@@ -32,7 +32,7 @@ export class GameManager {
         this.lastHoverX = -1;
         this.lastHoverY = -1;
 
-        // [신규] 드래그 관련 변수
+        // 드래그 변수
         this.isDragging = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
@@ -49,7 +49,6 @@ export class GameManager {
     setupInput() {
         const canvas = this.renderer.canvas;
 
-        // 1. 마우스 다운 (드래그 시작점 기록)
         canvas.addEventListener('mousedown', (e) => {
             if (this.gameOver) { location.reload(); return; }
             if (this.gameState === 'ACTION_SELECT') return;
@@ -61,29 +60,26 @@ export class GameManager {
             this.cameraStartY = this.renderer.camera.y;
         });
 
-        // 2. 마우스 이동 (드래그 중이면 카메라 이동, 아니면 호버)
         canvas.addEventListener('mousemove', (e) => {
             if (this.gameOver) return;
 
-            // 드래그 판정 (버튼 눌린 상태에서 이동)
-            if (e.buttons === 1) { // 좌클릭 상태
+            if (e.buttons === 1) { 
                 const dx = e.clientX - this.dragStartX;
                 const dy = e.clientY - this.dragStartY;
 
-                // 5픽셀 이상 움직이면 드래그로 간주
                 if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || this.isDragging) {
                     this.isDragging = true;
-                    // 카메라 이동 (드래그 방향의 반대로 이동해야 맵이 따라옴)
+                    // 카메라 이동
                     const newCamX = this.cameraStartX - dx;
                     const newCamY = this.cameraStartY - dy;
                     
                     this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
-                    return; // 드래그 중엔 호버 갱신 안 함
+                    return; 
                 }
             }
 
-            // 호버 정보 갱신 (마우스 좌표 + 카메라 좌표)
             const rect = canvas.getBoundingClientRect();
+            // 호버: 마우스 좌표 + 카메라 좌표
             const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
             const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
             
@@ -100,21 +96,18 @@ export class GameManager {
             if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
         });
 
-        // 3. 마우스 업 (드래그 끝 vs 클릭)
         canvas.addEventListener('mouseup', async (e) => {
             if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
 
-            // 드래그였다면 클릭 처리 안 하고 종료
             if (this.isDragging) {
                 this.isDragging = false;
                 return;
             }
 
-            // 클릭 처리
             if (this.turn === 'ENEMY' || this.isAnimating) return;
 
             const rect = canvas.getBoundingClientRect();
-            // [중요] 월드 좌표 변환
+            // 클릭: 마우스 좌표 + 카메라 좌표
             const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
             const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
 
@@ -137,7 +130,6 @@ export class GameManager {
     }
 
     async handleClick(x, y) {
-        // [1] 유닛 선택
         if (this.gameState === 'IDLE') {
             const clickedUnit = this.getUnitAt(x, y);
             if (clickedUnit && clickedUnit.team === 'blue' && !clickedUnit.isActionDone) {
@@ -148,7 +140,6 @@ export class GameManager {
             return;
         }
 
-        // [2] 이동
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
                 if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
@@ -171,7 +162,6 @@ export class GameManager {
             return;
         }
 
-        // [3] 타겟팅
         if (this.gameState === 'TARGETING') {
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 this.isAnimating = true;
@@ -285,10 +275,8 @@ export class GameManager {
         this.turn = 'PLAYER';
         this.units.forEach(u => u.resetTurn());
         
-        // [신규] 턴 시작 시 주인공(조조) 위치로 카메라 이동 (Optional)
         const mainChar = this.units.find(u => u.name === '조조' && !u.isDead());
         if(mainChar) {
-            // 화면 중앙에 오도록 계산
             const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
             const cy = mainChar.pixelY - (this.renderer.canvas.height / 2) + 20;
             this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
@@ -338,7 +326,6 @@ export class GameManager {
                 this.units.push(newUnit);
             });
             
-            // [신규] 초기 카메라 위치 설정 (조조 위치로)
             const mainChar = this.units.find(u => u.name === '조조');
             if (mainChar) {
                 const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;

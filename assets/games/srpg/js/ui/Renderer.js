@@ -3,31 +3,25 @@ export class Renderer {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.tileSize = 40;
-        
-        // [신규] 카메라 위치 (Pixel 단위)
-        this.camera = { x: 0, y: 0 };
+        this.camera = { x: 0, y: 0 }; // 이 부분이 꼭 있어야 함
     }
 
-    // [신규] 카메라 위치 업데이트 (맵 밖으로 안 나가게 제한)
     updateCamera(x, y, mapWidth, mapHeight) {
-        // 캔버스 크기
         const viewW = this.canvas.width;
         const viewH = this.canvas.height;
-        // 맵 전체 크기 (픽셀)
         const mapW = mapWidth * this.tileSize;
         const mapH = mapHeight * this.tileSize;
 
-        // 카메라 이동
         this.camera.x = x;
         this.camera.y = y;
 
-        // 범위 제한 (Clamping)
+        // 범위 제한
         if (this.camera.x < 0) this.camera.x = 0;
         if (this.camera.y < 0) this.camera.y = 0;
         if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
         if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
         
-        // 맵이 화면보다 작을 경우 0으로 고정
+        // 맵이 화면보다 작으면 0으로 고정 (이 로직 때문에 맵 파일 업데이트가 필수!)
         if (mapW < viewW) this.camera.x = 0;
         if (mapH < viewH) this.camera.y = 0;
     }
@@ -38,17 +32,12 @@ export class Renderer {
 
     drawMap(gridMap) {
         if (!gridMap.data) return;
-        
-        // 화면에 보이는 범위만 그리기 (최적화 - Optional but good)
-        // 여기선 간단하게 전체를 그릴 때 오프셋만 뺌
         for (let y = 0; y < gridMap.rows; y++) {
             for (let x = 0; x < gridMap.cols; x++) {
                 const type = gridMap.data[y][x];
-                // [수정] 카메라 오프셋 적용
                 const px = x * this.tileSize - this.camera.x;
                 const py = y * this.tileSize - this.camera.y;
 
-                // 화면 밖이면 그리지 않음 (간단한 컬링)
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) continue;
 
@@ -73,7 +62,6 @@ export class Renderer {
         }
 
         tiles.forEach(tile => {
-            // [수정] 카메라 오프셋
             const px = tile.x * this.tileSize - this.camera.x;
             const py = tile.y * this.tileSize - this.camera.y;
             this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
@@ -83,7 +71,6 @@ export class Renderer {
 
     drawCursor(unit) {
         if(!unit) return;
-        // [수정] 카메라 오프셋
         const px = unit.pixelX - this.camera.x;
         const py = unit.pixelY - this.camera.y;
         
@@ -95,11 +82,9 @@ export class Renderer {
 
     drawUnits(units) {
         units.forEach(unit => {
-            // [수정] 카메라 오프셋
             const px = unit.pixelX + unit.offsetX - this.camera.x;
             const py = unit.pixelY + unit.offsetY - this.camera.y;
             
-            // 화면 밖이면 생략
             if (px < -40 || py < -40 || px > this.canvas.width || py > this.canvas.height) return;
 
             const size = this.tileSize;
@@ -130,7 +115,6 @@ export class Renderer {
         });
     }
 
-    // [수정] 이펙트 그릴 때 카메라 정보 전달
     drawEffects(effectManager) {
         effectManager.draw(this.ctx, this.camera);
     }
