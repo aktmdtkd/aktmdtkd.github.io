@@ -43,29 +43,42 @@ export class GameManager {
     }
 
     async init() {
+        // [신규] 초기화 시 리사이징 수행
+        this.handleResize();
+        // 창 크기 변경 감지
+        window.addEventListener('resize', () => this.handleResize());
+
         this.setupInput();
-        // [신규] 줌 컨트롤 연결
         this.uiManager.setupZoomControls(
-            () => this.handleZoom(10),  // Zoom In
-            () => this.handleZoom(-10)  // Zoom Out
+            () => this.handleZoom(10),
+            () => this.handleZoom(-10)
         );
         await this.loadData();
         this.loop();
     }
 
-    // [신규] 줌 처리 로직
+    // [신규] 화면 크기 변경 핸들러
+    handleResize() {
+        const wrapper = document.querySelector('.game-wrapper');
+        const w = wrapper.clientWidth;
+        const h = wrapper.clientHeight;
+        
+        // 렌더러에게 실제 크기를 알려줘서 캔버스 해상도 맞춤
+        this.renderer.resize(w, h);
+        
+        // 화면 크기가 변했으니 카메라 제한 다시 계산
+        this.renderer.updateCamera(this.renderer.camera.x, this.renderer.camera.y, this.gridMap.cols, this.gridMap.rows);
+    }
+
     handleZoom(delta) {
         const oldSize = this.renderer.tileSize;
         let newSize = oldSize + delta;
 
-        // 제한 (20px ~ 80px)
         if (newSize < 20) newSize = 20;
         if (newSize > 80) newSize = 80;
 
         if (oldSize === newSize) return;
 
-        // 줌 중심점 유지 로직
-        // 현재 화면의 중앙이 맵의 어디를 보고 있었는지 계산
         const viewW = this.renderer.canvas.width;
         const viewH = this.renderer.canvas.height;
         
@@ -79,17 +92,14 @@ export class GameManager {
 
         this.renderer.setTileSize(newSize);
         
-        // 줌 변경에 따른 유닛 픽셀 좌표 업데이트
         this.units.forEach(u => {
-            u.tileSize = newSize; // 유닛 내부 타일사이즈 갱신
-            // 이동 중이 아닐 때만 강제 동기화 (이동 중이면 애니메이션 튈 수 있음 - 간소화 처리)
+            u.tileSize = newSize; 
             if (!u.isMoving) {
                 u.pixelX = u.x * newSize;
                 u.pixelY = u.y * newSize;
                 u.targetPixelX = u.x * newSize;
                 u.targetPixelY = u.y * newSize;
             } else {
-                // 이동 중이라면 비율대로 위치 보정
                 u.pixelX *= ratio;
                 u.pixelY *= ratio;
                 u.targetPixelX *= ratio;
@@ -97,7 +107,6 @@ export class GameManager {
             }
         });
 
-        // 카메라 위치 재설정
         this.renderer.updateCamera(
             newCenterX - viewW / 2, 
             newCenterY - viewH / 2, 
@@ -110,12 +119,10 @@ export class GameManager {
         const canvas = this.renderer.canvas;
         const rect = canvas.getBoundingClientRect();
         
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-
+        // 캔버스 해상도가 화면 크기와 1:1로 맞춰졌으므로 스케일 계산 불필요
         return {
-            x: (evt.clientX - rect.left) * scaleX,
-            y: (evt.clientY - rect.top) * scaleY
+            x: evt.clientX - rect.left,
+            y: evt.clientY - rect.top
         };
     }
 
@@ -416,7 +423,6 @@ export class GameManager {
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo);
-                // [신규] 유닛에게 타일 사이즈 정보 전달 (초기화)
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });

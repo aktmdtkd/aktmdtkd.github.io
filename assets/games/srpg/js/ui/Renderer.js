@@ -2,11 +2,18 @@ export class Renderer {
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
-        this.tileSize = 40; // 기본 크기
+        this.tileSize = 40; 
         this.camera = { x: 0, y: 0 };
     }
 
-    // [신규] 줌 기능
+    // [신규] 캔버스 해상도 리사이징
+    resize(width, height) {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        // 캔버스 크기가 바뀌었으므로 렌더링 컨텍스트의 설정이 초기화될 수 있음(폰트 등)
+        // 필요하다면 여기서 다시 설정
+    }
+
     setTileSize(newSize) {
         this.tileSize = newSize;
     }
@@ -26,6 +33,7 @@ export class Renderer {
         if (mapW > viewW) {
             if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
         } else {
+            // 화면이 맵보다 크면 중앙 정렬하거나 0에 둠. 여기선 0
             this.camera.x = 0;
         }
 
@@ -82,7 +90,6 @@ export class Renderer {
 
     drawCursor(unit) {
         if(!unit) return;
-        // 유닛의 논리적 위치(x,y)를 현재 타일 크기로 변환
         const px = unit.x * this.tileSize - this.camera.x;
         const py = unit.y * this.tileSize - this.camera.y;
         
@@ -94,23 +101,13 @@ export class Renderer {
 
     drawUnits(units) {
         units.forEach(unit => {
-            // 애니메이션 중일 때만 pixelX를 쓰지만, 줌이 바뀌면 pixelX도 갱신 필요
-            // 여기서는 간단히: 이동 중이 아니면 (x * tileSize)를 쓰고, 이동 중이면 보정 필요
-            // 가장 깔끔한 방법: Unit.js에서 줌 바뀔 때 pixelX 재계산 하도록 하거나,
-            // 렌더링 시에 비율 계산. 여기서는 후자(Unit.x * tileSize + offset) 방식을 씁니다.
-
-            // 이동 애니메이션 중 오프셋(0~1 사이 비율) 계산을 위해 임시 로직 사용 가능하지만
-            // 기존 로직(pixelX)은 고정 40px 기준이라 줌 바뀌면 어긋납니다.
-            // 해결: Unit의 pixelX는 항상 '현재 타일 사이즈 기준'이어야 함. 
-            // GameManager에서 줌 변경 시 Unit들의 pixelX도 업데이트 해줄 예정.
-
             const px = unit.pixelX + unit.offsetX - this.camera.x;
             const py = unit.pixelY + unit.offsetY - this.camera.y;
             
             if (px < -this.tileSize || py < -this.tileSize || px > this.canvas.width || py > this.canvas.height) return;
 
             const size = this.tileSize;
-            const padding = size * 0.1; // 비율로 변경
+            const padding = size * 0.1;
 
             if (unit.isActionDone) {
                 this.ctx.fillStyle = '#888888';
@@ -121,7 +118,7 @@ export class Renderer {
             this.ctx.fillRect(px + padding, py + padding, size - padding*2, size - padding*2);
 
             this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = `${Math.floor(size/4)}px Arial`; // 폰트 크기도 가변
+            this.ctx.font = `${Math.floor(size/4)}px Arial`;
             this.ctx.textAlign = 'center';
             this.ctx.fillText(unit.name, px + size/2, py + size/2 + size/10);
 
