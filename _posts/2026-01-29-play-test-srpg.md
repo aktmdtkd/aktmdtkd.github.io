@@ -16,6 +16,8 @@ HTML5와 JS로 만들었습니다.
 
 현재 스마트폰과 PC모두 플레이하실 수 있습니다.
 
+우측 상단의 + 와 - 는 화면 확대와 축소입니다.
+
 <div style="width: 100%; height: 500px; text-align: center; border: 2px solid #bbada0; border-radius: 10px; overflow: hidden;">
   <iframe 
     src="/assets/games/srpg/index.html" 
