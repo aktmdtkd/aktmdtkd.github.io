@@ -20,7 +20,7 @@ export class GameManager {
         this.units = [];
         this.classes = {};
         this.roster = [];
-        this.items = []; // [신규] 아이템 데이터
+        this.items = [];
         this.selectedRoster = [];
 
         this.gameState = 'IDLE'; 
@@ -33,7 +33,6 @@ export class GameManager {
         this.movableTiles = [];
         this.attackableTiles = [];
         
-        // Input Vars
         this.isMouseDown = false;
         this.isDragging = false;
         this.dragStartX = 0; this.dragStartY = 0;
@@ -42,7 +41,6 @@ export class GameManager {
 
         this.turnIndicator = document.getElementById('turn-indicator');
         
-        // Dialogue Vars
         this.dialogueQueue = [];
         this.dialogueEl = document.getElementById('dialogue-overlay');
         this.diaNameEl = document.getElementById('dia-name');
@@ -51,7 +49,7 @@ export class GameManager {
 
     async init() {
         await this.loadClassData();
-        await this.loadItemData(); // [신규]
+        await this.loadItemData();
         await this.loadRosterAndShowUI();
         
         this.setupInput();
@@ -64,7 +62,6 @@ export class GameManager {
         this.classes = await res.json();
     }
 
-    // [신규] 아이템 데이터 로드
     async loadItemData() {
         const res = await fetch('./js/data/items.json');
         this.items = await res.json();
@@ -73,14 +70,12 @@ export class GameManager {
     async loadRosterAndShowUI() {
         const res = await fetch('./js/data/roster.json');
         this.roster = await res.json();
-        // 각 로스터 멤버에게 equippedItemId 속성 초기화 (없으면 null)
         this.roster.forEach(c => { if(c.equippedItemId === undefined) c.equippedItemId = null; });
         
         this.selectedRoster = this.roster.filter(c => c.isFixed).map(c => c.id);
         this.renderBarracks();
     }
 
-    // [수정] 병영 렌더링 (장비 버튼 추가)
     renderBarracks() {
         const listEl = document.getElementById('roster-list');
         const countEl = document.getElementById('deploy-count');
@@ -95,14 +90,12 @@ export class GameManager {
 
             const className = this.classes[char.class] ? this.classes[char.class].name : char.class;
             
-            // 장착된 아이템 이름 찾기
             let equipName = "장비 없음";
             if (char.equippedItemId) {
                 const item = this.items.find(i => i.id === char.equippedItemId);
                 if (item) equipName = `<span style="color:#88ccff">${item.name}</span>`;
             }
 
-            // 왼쪽: 캐릭터 정보 / 오른쪽: 장비 버튼
             el.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:flex-start;">
                     <div><span style="font-weight:bold; font-size:16px;">${char.name}</span> <span style="font-size:12px; color:#aaa;">${className}</span></div>
@@ -111,14 +104,12 @@ export class GameManager {
                 <button class="equip-btn">장비 변경</button>
             `;
 
-            // 1. 아이템 클릭 이벤트 (버블링 방지)
             const equipBtn = el.querySelector('.equip-btn');
             equipBtn.onclick = (e) => {
-                e.stopPropagation(); // 부모 클릭(출진선택) 방지
+                e.stopPropagation();
                 this.openEquipmentModal(char.id);
             };
 
-            // 2. 전체 클릭 이벤트 (출진 선택)
             if (!char.isFixed) {
                 el.onclick = () => {
                     if (this.selectedRoster.includes(char.id)) {
@@ -139,7 +130,6 @@ export class GameManager {
         deployBtn.onclick = () => this.startBattle();
     }
 
-    // [신규] 장비 선택 모달 열기
     openEquipmentModal(charId) {
         const modal = document.getElementById('equipment-modal');
         const list = document.getElementById('item-list');
@@ -148,7 +138,6 @@ export class GameManager {
         list.innerHTML = '';
         modal.style.display = 'flex';
 
-        // '해제' 버튼 추가
         const unequip = document.createElement('div');
         unequip.className = 'item-row';
         unequip.innerHTML = `<span style="color:#aaa;">장비 해제</span>`;
@@ -159,12 +148,10 @@ export class GameManager {
         };
         list.appendChild(unequip);
 
-        // 아이템 목록 표시
         this.items.forEach(item => {
             const row = document.createElement('div');
             row.className = 'item-row';
             
-            // 현재 장착중인지 표시
             const isEquipped = (char.equippedItemId === item.id);
             const style = isEquipped ? 'border:1px solid #00ff00;' : '';
 
@@ -177,8 +164,6 @@ export class GameManager {
             `;
             
             row.onclick = () => {
-                // 다른 캐릭터가 이미 끼고 있는지 체크? (일단 중복 장착 허용 or 단순 교체)
-                // 여기서는 1인 1무기, 중복 소유 가능(재고 무제한 가정)으로 구현
                 char.equippedItemId = item.id;
                 modal.style.display = 'none';
                 this.renderBarracks();
@@ -244,15 +229,13 @@ export class GameManager {
             
             this.gridMap.load(stage1);
             
-            // 1. 적군 배치
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
-                const newUnit = new Unit(uConfig, classInfo, null); // 적군은 아이템 없음
+                const newUnit = new Unit(uConfig, classInfo, null);
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
 
-            // 2. 아군 배치
             const spawnCandidates = [];
             for(let y=1; y<=4; y++) {
                 for(let x=1; x<=4; x++) {
@@ -266,18 +249,15 @@ export class GameManager {
             this.selectedRoster.forEach((charId, index) => {
                 if (index >= spawnCandidates.length) return;
                 
-                // 로스터 정보 가져오기
                 const charData = this.roster.find(c => c.id === charId);
                 const classInfo = this.classes[charData.class];
                 const pos = spawnCandidates[index];
 
-                // [핵심] 장착 아이템 정보 찾기
                 let itemInfo = null;
                 if (charData.equippedItemId) {
                     itemInfo = this.items.find(i => i.id === charData.equippedItemId);
                 }
 
-                // 유닛 생성 시 아이템 정보 전달
                 const newUnit = new Unit({
                     id: charData.id, name: charData.name, class: charData.class, team: 'blue',
                     x: pos.x, y: pos.y
@@ -290,7 +270,6 @@ export class GameManager {
         } catch (e) { console.error(e); }
     }
 
-    // --- 이하 기존 로직 (Input, Loop, Resize 등) ---
     handleResize() {
         const wrapper = document.querySelector('.game-wrapper');
         const w = wrapper.clientWidth; const h = wrapper.clientHeight;
@@ -422,10 +401,62 @@ export class GameManager {
         }
     }
     onMoveFinished() { this.isAnimating = false; this.openActionMenu(); }
-    openActionMenu() { this.gameState = 'ACTION_SELECT'; this.attackableTiles = []; this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait()); }
+    openActionMenu() {
+        this.gameState = 'ACTION_SELECT';
+        this.attackableTiles = [];
+        this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait());
+    }
     openSkillMenu() { this.uiManager.showSkillMenu(this.selectedUnit, (skillId) => this.selectSkill(skillId)); }
-    selectAttack() { this.selectedAction = { type: 'attack' }; this.calculateRange(this.selectedUnit.attackRange); this.gameState = 'TARGETING'; }
-    selectSkill(skillId) { this.selectedAction = { type: 'skill', id: skillId }; const skill = SKILLS[skillId]; this.calculateRange(skill.range); this.gameState = 'TARGETING'; }
+    
+    // [수정] 공격 범위 체크 로직 추가
+    selectAttack() { 
+        this.selectedAction = { type: 'attack' }; 
+        this.calculateRange(this.selectedUnit.attackRange);
+        
+        // 범위 내 적이 있는지 확인
+        const hasEnemy = this.attackableTiles.some(tile => {
+            const u = this.getUnitAt(tile.x, tile.y);
+            return u && u.team === 'red';
+        });
+
+        if (!hasEnemy) {
+            alert("범위 내에 적이 없습니다.");
+            this.attackableTiles = []; // 범위 표시 지움
+            this.openActionMenu(); // 메뉴 다시 열기
+            return;
+        }
+
+        this.gameState = 'TARGETING'; 
+    }
+
+    // [수정] 스킬 범위/대상 체크 로직 추가
+    selectSkill(skillId) { 
+        this.selectedAction = { type: 'skill', id: skillId }; 
+        const skill = SKILLS[skillId]; 
+        this.calculateRange(skill.range); 
+        
+        // 범위 내 유효한 대상이 있는지 확인
+        const hasTarget = this.attackableTiles.some(tile => {
+            const u = this.getUnitAt(tile.x, tile.y);
+            if (!u) return false; // 유닛 없음
+
+            if (skill.type === 'heal') {
+                return u.team === 'blue'; // 힐은 아군만
+            } else {
+                return u.team === 'red'; // 공격은 적군만
+            }
+        });
+
+        if (!hasTarget) {
+            alert("범위 내에 유효한 대상이 없습니다.");
+            this.attackableTiles = [];
+            this.openActionMenu();
+            return;
+        }
+
+        this.gameState = 'TARGETING'; 
+    }
+    
     wait() { this.endAction(); }
     calculateRange(range) {
         this.attackableTiles = [];
