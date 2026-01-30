@@ -20,18 +20,24 @@ export class GameManager {
         this.units = [];
         this.classes = {};
 
-        // 상태: IDLE -> SELECTED -> MOVING -> ACTION_SELECT -> TARGETING
         this.gameState = 'IDLE'; 
         this.turn = 'PLAYER'; 
         this.isAnimating = false;
         this.gameOver = null;
         
         this.selectedUnit = null;
-        this.selectedAction = null; // { type: 'attack' } or { type: 'skill', id: 'fire' }
+        this.selectedAction = null; 
         this.movableTiles = [];
         this.attackableTiles = [];
         this.lastHoverX = -1;
         this.lastHoverY = -1;
+
+        // [신규] 드래그 관련 변수
+        this.isDragging = false;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.cameraStartX = 0;
+        this.cameraStartY = 0;
     }
 
     async init() {
@@ -43,11 +49,46 @@ export class GameManager {
     setupInput() {
         const canvas = this.renderer.canvas;
 
+        // 1. 마우스 다운 (드래그 시작점 기록)
+        canvas.addEventListener('mousedown', (e) => {
+            if (this.gameOver) { location.reload(); return; }
+            if (this.gameState === 'ACTION_SELECT') return;
+
+            this.isDragging = false;
+            this.dragStartX = e.clientX;
+            this.dragStartY = e.clientY;
+            this.cameraStartX = this.renderer.camera.x;
+            this.cameraStartY = this.renderer.camera.y;
+        });
+
+        // 2. 마우스 이동 (드래그 중이면 카메라 이동, 아니면 호버)
         canvas.addEventListener('mousemove', (e) => {
             if (this.gameOver) return;
+
+            // 드래그 판정 (버튼 눌린 상태에서 이동)
+            if (e.buttons === 1) { // 좌클릭 상태
+                const dx = e.clientX - this.dragStartX;
+                const dy = e.clientY - this.dragStartY;
+
+                // 5픽셀 이상 움직이면 드래그로 간주
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || this.isDragging) {
+                    this.isDragging = true;
+                    // 카메라 이동 (드래그 방향의 반대로 이동해야 맵이 따라옴)
+                    const newCamX = this.cameraStartX - dx;
+                    const newCamY = this.cameraStartY - dy;
+                    
+                    this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
+                    return; // 드래그 중엔 호버 갱신 안 함
+                }
+            }
+
+            // 호버 정보 갱신 (마우스 좌표 + 카메라 좌표)
             const rect = canvas.getBoundingClientRect();
-            const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
-            const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
+            const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
+            const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
+            
+            const tx = Math.floor(worldX / this.renderer.tileSize);
+            const ty = Math.floor(worldY / this.renderer.tileSize);
 
             if (tx === this.lastHoverX && ty === this.lastHoverY) return;
             this.lastHoverX = tx;
@@ -59,24 +100,34 @@ export class GameManager {
             if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
         });
 
-        canvas.addEventListener('mousedown', async (e) => {
-            if (this.gameOver) { location.reload(); return; }
+        // 3. 마우스 업 (드래그 끝 vs 클릭)
+        canvas.addEventListener('mouseup', async (e) => {
+            if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
+
+            // 드래그였다면 클릭 처리 안 하고 종료
+            if (this.isDragging) {
+                this.isDragging = false;
+                return;
+            }
+
+            // 클릭 처리
             if (this.turn === 'ENEMY' || this.isAnimating) return;
-            // 메뉴가 떠있을 땐 캔버스 클릭 막기 (간단 처리)
-            if (this.gameState === 'ACTION_SELECT') return;
 
             const rect = canvas.getBoundingClientRect();
-            const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
-            const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
+            // [중요] 월드 좌표 변환
+            const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
+            const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
+
+            const tx = Math.floor(worldX / this.renderer.tileSize);
+            const ty = Math.floor(worldY / this.renderer.tileSize);
+            
             await this.handleClick(tx, ty);
         });
 
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            // 우클릭 취소 로직
             if (this.turn === 'PLAYER' && !this.isAnimating && !this.gameOver) {
                 if (this.gameState === 'TARGETING') {
-                    // 타겟팅 중에 우클릭하면 다시 메뉴로
                     this.openActionMenu();
                 } else if (this.gameState === 'SELECTED') {
                     this.resetSelection();
@@ -102,7 +153,7 @@ export class GameManager {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
                 if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
                     this.movableTiles = [];
-                    this.onMoveFinished(); // 제자리 대기 -> 메뉴 오픈
+                    this.onMoveFinished(); 
                     return;
                 }
                 const path = this.pathFinder.findPath(this.selectedUnit, x, y, this.gridMap, this.units);
@@ -120,25 +171,21 @@ export class GameManager {
             return;
         }
 
-        // [3] 타겟팅 (공격 또는 스킬)
+        // [3] 타겟팅
         if (this.gameState === 'TARGETING') {
-            // 범위 내 클릭인지 확인
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 this.isAnimating = true;
 
-                // A. 일반 공격
                 if (this.selectedAction.type === 'attack') {
                     const targetUnit = this.getUnitAt(x, y);
                     if (targetUnit && targetUnit.team === 'red') {
                         await this.battleSystem.executeAttack(this.selectedUnit, targetUnit, this.effectManager);
                         this.finishTurnSequence(targetUnit);
                     } else {
-                        this.isAnimating = false; // 잘못 누름
+                        this.isAnimating = false; 
                     }
                 } 
-                // B. 책략 사용
                 else if (this.selectedAction.type === 'skill') {
-                    // 책략은 빈 땅에도 쓸 수 있음 (범위기 등)
                     await this.battleSystem.executeSkill(
                         this.selectedUnit, x, y, 
                         this.selectedAction.id, 
@@ -151,56 +198,47 @@ export class GameManager {
         }
     }
 
-    // 이동 완료 후 호출됨
     onMoveFinished() {
         this.isAnimating = false;
-        // 곧바로 타겟팅이 아니라 메뉴를 연다
         this.openActionMenu();
     }
 
     openActionMenu() {
         this.gameState = 'ACTION_SELECT';
-        this.attackableTiles = []; // 범위 표시 제거
+        this.attackableTiles = []; 
 
         this.uiManager.showActionMenu(
             this.selectedUnit,
-            () => this.selectAttack(),  // 공격 클릭 시
-            () => this.openSkillMenu(), // 책략 클릭 시
-            () => this.wait()           // 대기 클릭 시
+            () => this.selectAttack(),  
+            () => this.openSkillMenu(), 
+            () => this.wait()           
         );
     }
 
     openSkillMenu() {
         this.uiManager.showSkillMenu(
             this.selectedUnit,
-            (skillId) => this.selectSkill(skillId) // 스킬 선택 시
+            (skillId) => this.selectSkill(skillId) 
         );
     }
 
-    // [행동 1] 공격 선택
     selectAttack() {
         this.selectedAction = { type: 'attack' };
         this.calculateRange(this.selectedUnit.attackRange);
         this.gameState = 'TARGETING';
-        console.log("Mode: Attack Targeting");
     }
 
-    // [행동 2] 스킬 선택
     selectSkill(skillId) {
         this.selectedAction = { type: 'skill', id: skillId };
         const skill = SKILLS[skillId];
         this.calculateRange(skill.range);
         this.gameState = 'TARGETING';
-        console.log(`Mode: Skill Targeting (${skill.name})`);
     }
 
-    // [행동 3] 대기
     wait() {
-        console.log("Command: Wait");
         this.endAction();
     }
 
-    // 범위 계산 (공격/스킬 공용)
     calculateRange(range) {
         this.attackableTiles = [];
         for (let dy = -range; dy <= range; dy++) {
@@ -228,7 +266,7 @@ export class GameManager {
             this.selectedUnit.endAction();
         }
         this.resetSelection();
-        this.uiManager.hideMenus(); // 메뉴 닫기
+        this.uiManager.hideMenus();
 
         if (this.checkWinCondition()) return;
 
@@ -246,6 +284,15 @@ export class GameManager {
     startPlayerTurn() {
         this.turn = 'PLAYER';
         this.units.forEach(u => u.resetTurn());
+        
+        // [신규] 턴 시작 시 주인공(조조) 위치로 카메라 이동 (Optional)
+        const mainChar = this.units.find(u => u.name === '조조' && !u.isDead());
+        if(mainChar) {
+            // 화면 중앙에 오도록 계산
+            const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
+            const cy = mainChar.pixelY - (this.renderer.canvas.height / 2) + 20;
+            this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
+        }
     }
 
     resetSelection() {
@@ -290,6 +337,14 @@ export class GameManager {
                 const newUnit = new Unit(uConfig, classInfo);
                 this.units.push(newUnit);
             });
+            
+            // [신규] 초기 카메라 위치 설정 (조조 위치로)
+            const mainChar = this.units.find(u => u.name === '조조');
+            if (mainChar) {
+                const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
+                const cy = mainChar.pixelY - (this.renderer.canvas.height / 2) + 20;
+                this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
+            }
         } catch (e) {
             console.error(e);
         }
@@ -308,10 +363,8 @@ export class GameManager {
         this.renderer.drawMap(this.gridMap);
         
         if (!this.gameOver) {
-            // 이동 범위
             if (this.movableTiles.length > 0) this.renderer.drawHighlights(this.movableTiles, 'move');
             
-            // 공격/스킬 범위 (메뉴가 떠있을 땐 안 그림)
             if (this.gameState === 'TARGETING' && this.attackableTiles.length > 0) {
                 this.renderer.drawHighlights(this.attackableTiles, 'attack');
             }
@@ -324,6 +377,7 @@ export class GameManager {
         if (!this.gameOver) {
             this.renderer.ctx.fillStyle = 'white';
             this.renderer.ctx.font = '20px Arial';
+            this.renderer.ctx.textAlign = 'left';
             this.renderer.ctx.fillText(`TURN: ${this.turn}`, 10, 30);
         } else {
             this.renderer.drawGameOver(this.gameOver);

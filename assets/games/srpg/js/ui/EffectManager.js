@@ -1,19 +1,17 @@
-// 둥둥 떠다니는 텍스트 객체
 class FloatingText {
     constructor(x, y, text, color) {
-        this.x = x;
+        this.x = x; // 월드 픽셀 좌표
         this.y = y;
         this.text = text;
         this.color = color;
-        this.life = 60; // 60프레임 (약 1초) 동안 생존
-        this.vy = -1; // 위로 올라가는 속도
-        this.alpha = 1.0; // 투명도
+        this.life = 60;
+        this.vy = -1;
+        this.alpha = 1.0;
     }
 
     update() {
         this.y += this.vy;
         this.life--;
-        // 수명이 다해갈수록 투명해짐
         if (this.life < 20) {
             this.alpha = this.life / 20;
         }
@@ -25,37 +23,41 @@ export class EffectManager {
         this.effects = [];
     }
 
-    // 데미지 텍스트 추가
-    addDamageText(x, y, amount, isCritical = false) {
+    addDamageText(x, y, amount, color='#ffffff') {
         const tileSize = 40;
-        // 유닛 머리 위 중앙쯤에 표시
+        // 월드 픽셀 좌표로 저장
         const px = x * tileSize + tileSize / 2;
         const py = y * tileSize;
-        const color = isCritical ? '#ff0000' : '#ffffff'; // 크리티컬은 빨강, 일반은 흰색
-        const text = isCritical ? `CRIT! ${amount}` : `${amount}`;
+        
+        // 입력값이 숫자면 그대로, 아니면 문자열
+        const text = String(amount);
         
         this.effects.push(new FloatingText(px, py, text, color));
     }
 
     update() {
-        // 모든 이펙트 업데이트 및 수명 다한 것 제거
         this.effects.forEach(e => e.update());
         this.effects = this.effects.filter(e => e.life > 0);
     }
 
-    draw(ctx) {
+    // [수정] 카메라 오프셋 적용
+    draw(ctx, camera = {x:0, y:0}) {
         ctx.save();
         ctx.textAlign = 'center';
         ctx.font = 'bold 16px Arial';
         
         this.effects.forEach(e => {
+            // 화면 좌표 = 월드 좌표 - 카메라
+            const screenX = e.x - camera.x;
+            const screenY = e.y - camera.y;
+
             ctx.fillStyle = e.color;
             ctx.globalAlpha = e.alpha;
-            // 텍스트 외곽선 (가독성용)
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 2;
-            ctx.strokeText(e.text, e.x, e.y);
-            ctx.fillText(e.text, e.x, e.y);
+            
+            ctx.strokeText(e.text, screenX, screenY);
+            ctx.fillText(e.text, screenX, screenY);
         });
         
         ctx.restore();
