@@ -1,0 +1,10 @@
+[
+  { "id": "sword_1", "name": "장검", "tier": 1, "type": "weapon", "stats": { "atk": 5 }, "desc": "일반적인 병사들이 쓰는 검 (공격+5)" },
+  { "id": "book_1", "name": "병서", "tier": 1, "type": "book", "stats": { "mp": 10, "int": 5 }, "desc": "기초적인 병법이 적힌 책 (MP+10, 지력+5)" },
+  
+  { "id": "spear_2", "name": "장창", "tier": 2, "type": "weapon", "stats": { "atk": 12 }, "desc": "길고 날카로운 창 (공격+12)" },
+  { "id": "book_2", "name": "좌씨전", "tier": 2, "type": "book", "stats": { "mp": 20, "int": 15 }, "desc": "춘추좌씨전. 지혜를 넓혀준다 (MP+20, 지력+15)" },
+  
+  { "id": "sword_3", "name": "의천검", "tier": 3, "type": "weapon", "stats": { "atk": 25, "hp": 20 }, "desc": "조조의 애검. 하늘을 찌를 기세 (공격+25, 체력+20)" },
+  { "id": "book_3", "name": "손자병법", "tier": 3, "type": "book", "stats": { "mp": 40, "int": 30 }, "desc": "병법의 정수 (MP+40, 지력+30)" }
+]

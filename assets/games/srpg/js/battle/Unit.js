@@ -1,5 +1,6 @@
 export class Unit {
-    constructor(config, classInfo) {
+    // [수정] itemInfo 인자 추가
+    constructor(config, classInfo, itemInfo = null) {
         this.id = config.id;
         this.name = config.name;
         this.team = config.team;
@@ -22,16 +23,25 @@ export class Unit {
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
         
-        this.maxHp = classInfo.hp;
-        this.currentHp = classInfo.hp;
-        this.maxMp = classInfo.mp || 0;
+        // --- 스탯 계산 (기본 + 아이템) ---
+        // 아이템 스탯 추출
+        const iStats = itemInfo ? itemInfo.stats : {};
+
+        // 1. HP
+        this.maxHp = classInfo.hp + (iStats.hp || 0);
+        this.currentHp = this.maxHp;
+        
+        // 2. MP
+        this.maxMp = (classInfo.mp || 0) + (iStats.mp || 0);
         this.currentMp = this.maxMp;
         
-        this.atk = classInfo.atk;
-        this.def = classInfo.def;
-        this.int = classInfo.int || 10;
+        // 3. 공격력 / 방어력 / 정신력
+        this.atk = classInfo.atk + (iStats.atk || 0);
+        this.def = classInfo.def + (iStats.def || 0);
+        this.int = (classInfo.int || 10) + (iStats.int || 0);
         
         this.skills = classInfo.skills || [];
+        this.equippedItemName = itemInfo ? itemInfo.name : null; // 디버깅용
 
         this.isActionDone = false;
     }

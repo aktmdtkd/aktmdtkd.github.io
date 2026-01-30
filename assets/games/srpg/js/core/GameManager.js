@@ -20,6 +20,7 @@ export class GameManager {
         this.units = [];
         this.classes = {};
         this.roster = [];
+        this.items = []; // [신규] 아이템 데이터
         this.selectedRoster = [];
 
         this.gameState = 'IDLE'; 
@@ -31,19 +32,17 @@ export class GameManager {
         this.selectedAction = null; 
         this.movableTiles = [];
         this.attackableTiles = [];
-        this.lastHoverX = -1;
-        this.lastHoverY = -1;
-
+        
+        // Input Vars
         this.isMouseDown = false;
         this.isDragging = false;
-        this.dragStartX = 0;
-        this.dragStartY = 0;
-        this.cameraStartX = 0;
-        this.cameraStartY = 0;
+        this.dragStartX = 0; this.dragStartY = 0;
+        this.cameraStartX = 0; this.cameraStartY = 0;
+        this.lastHoverX = -1; this.lastHoverY = -1;
 
         this.turnIndicator = document.getElementById('turn-indicator');
-
-        // [신규] 대화 관련 변수
+        
+        // Dialogue Vars
         this.dialogueQueue = [];
         this.dialogueEl = document.getElementById('dialogue-overlay');
         this.diaNameEl = document.getElementById('dia-name');
@@ -52,13 +51,11 @@ export class GameManager {
 
     async init() {
         await this.loadClassData();
+        await this.loadItemData(); // [신규]
         await this.loadRosterAndShowUI();
         
         this.setupInput();
-        this.uiManager.setupZoomControls(
-            () => this.handleZoom(10),
-            () => this.handleZoom(-10)
-        );
+        this.uiManager.setupZoomControls(() => this.handleZoom(10), () => this.handleZoom(-10));
         window.addEventListener('resize', () => this.handleResize());
     }
 
@@ -67,13 +64,23 @@ export class GameManager {
         this.classes = await res.json();
     }
 
+    // [신규] 아이템 데이터 로드
+    async loadItemData() {
+        const res = await fetch('./js/data/items.json');
+        this.items = await res.json();
+    }
+
     async loadRosterAndShowUI() {
         const res = await fetch('./js/data/roster.json');
         this.roster = await res.json();
+        // 각 로스터 멤버에게 equippedItemId 속성 초기화 (없으면 null)
+        this.roster.forEach(c => { if(c.equippedItemId === undefined) c.equippedItemId = null; });
+        
         this.selectedRoster = this.roster.filter(c => c.isFixed).map(c => c.id);
         this.renderBarracks();
     }
 
+    // [수정] 병영 렌더링 (장비 버튼 추가)
     renderBarracks() {
         const listEl = document.getElementById('roster-list');
         const countEl = document.getElementById('deploy-count');
@@ -83,27 +90,42 @@ export class GameManager {
         this.roster.forEach(char => {
             const el = document.createElement('div');
             el.className = 'roster-item';
-            
-            if (char.isFixed) {
-                el.classList.add('fixed', 'selected');
-            } else if (this.selectedRoster.includes(char.id)) {
-                el.classList.add('selected');
-            }
+            if (char.isFixed) el.classList.add('fixed', 'selected');
+            else if (this.selectedRoster.includes(char.id)) el.classList.add('selected');
 
             const className = this.classes[char.class] ? this.classes[char.class].name : char.class;
-            el.innerHTML = `<span>${char.name}</span> <span style="font-size:12px; color:#aaa;">${className}</span>`;
+            
+            // 장착된 아이템 이름 찾기
+            let equipName = "장비 없음";
+            if (char.equippedItemId) {
+                const item = this.items.find(i => i.id === char.equippedItemId);
+                if (item) equipName = `<span style="color:#88ccff">${item.name}</span>`;
+            }
 
+            // 왼쪽: 캐릭터 정보 / 오른쪽: 장비 버튼
+            el.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                    <div><span style="font-weight:bold; font-size:16px;">${char.name}</span> <span style="font-size:12px; color:#aaa;">${className}</span></div>
+                    <div style="font-size:12px; color:#ddd;">${equipName}</div>
+                </div>
+                <button class="equip-btn">장비 변경</button>
+            `;
+
+            // 1. 아이템 클릭 이벤트 (버블링 방지)
+            const equipBtn = el.querySelector('.equip-btn');
+            equipBtn.onclick = (e) => {
+                e.stopPropagation(); // 부모 클릭(출진선택) 방지
+                this.openEquipmentModal(char.id);
+            };
+
+            // 2. 전체 클릭 이벤트 (출진 선택)
             if (!char.isFixed) {
                 el.onclick = () => {
                     if (this.selectedRoster.includes(char.id)) {
                         this.selectedRoster = this.selectedRoster.filter(id => id !== char.id);
                     } else {
-                        if (this.selectedRoster.length < 4) {
-                            this.selectedRoster.push(char.id);
-                        } else {
-                            alert("최대 4명까지만 출진할 수 있습니다.");
-                            return;
-                        }
+                        if (this.selectedRoster.length < 4) this.selectedRoster.push(char.id);
+                        else { alert("최대 4명까지만 출진할 수 있습니다."); return; }
                     }
                     this.renderBarracks();
                 };
@@ -117,19 +139,63 @@ export class GameManager {
         deployBtn.onclick = () => this.startBattle();
     }
 
+    // [신규] 장비 선택 모달 열기
+    openEquipmentModal(charId) {
+        const modal = document.getElementById('equipment-modal');
+        const list = document.getElementById('item-list');
+        const char = this.roster.find(c => c.id === charId);
+        
+        list.innerHTML = '';
+        modal.style.display = 'flex';
+
+        // '해제' 버튼 추가
+        const unequip = document.createElement('div');
+        unequip.className = 'item-row';
+        unequip.innerHTML = `<span style="color:#aaa;">장비 해제</span>`;
+        unequip.onclick = () => {
+            char.equippedItemId = null;
+            modal.style.display = 'none';
+            this.renderBarracks();
+        };
+        list.appendChild(unequip);
+
+        // 아이템 목록 표시
+        this.items.forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            
+            // 현재 장착중인지 표시
+            const isEquipped = (char.equippedItemId === item.id);
+            const style = isEquipped ? 'border:1px solid #00ff00;' : '';
+
+            row.style.cssText = style;
+            row.innerHTML = `
+                <div>
+                    <div><span class="tier-badge">T${item.tier}</span> <span class="item-name">${item.name}</span></div>
+                    <div class="item-desc">${item.desc}</div>
+                </div>
+            `;
+            
+            row.onclick = () => {
+                // 다른 캐릭터가 이미 끼고 있는지 체크? (일단 중복 장착 허용 or 단순 교체)
+                // 여기서는 1인 1무기, 중복 소유 가능(재고 무제한 가정)으로 구현
+                char.equippedItemId = item.id;
+                modal.style.display = 'none';
+                this.renderBarracks();
+            };
+            list.appendChild(row);
+        });
+    }
+
     async startBattle() {
         document.getElementById('barracks-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
-        
         this.handleResize();
         await this.loadMapAndUnits();
-        
-        // [수정] 바로 게임 루프가 아니라 오프닝 대화 시작
         this.playIntroDialogue();
         this.loop();
     }
 
-    // [신규] 오프닝 대화 실행
     playIntroDialogue() {
         const script = [
             { name: "조조", text: "네 이놈 장보야! 하늘이 두렵지 않느냐!" },
@@ -143,31 +209,23 @@ export class GameManager {
         this.dialogueQueue = script;
         this.gameState = 'DIALOGUE';
         this.dialogueEl.style.display = 'block';
-        
-        // UI 가리기
         document.getElementById('game-ui').style.opacity = '0';
-        
         this.advanceDialogue();
     }
 
     advanceDialogue() {
         if (this.dialogueQueue.length === 0) {
-            // 대화 종료
             this.gameState = 'IDLE';
             this.dialogueEl.style.display = 'none';
             document.getElementById('game-ui').style.opacity = '1';
-            
-            // 아군 턴 시작 (카메라는 조조에게)
             this.startPlayerTurn();
             return;
         }
-
         const line = this.dialogueQueue.shift();
         this.diaNameEl.innerText = line.name;
-        this.diaNameEl.style.color = (line.name === '조조' || line.name === '곽가' || line.name === '하후돈') ? '#00ccff' : '#ff6666';
+        this.diaNameEl.style.color = (['조조','곽가','하후돈','하후연','조홍','악진','허저','순욱','순유','정욱'].includes(line.name)) ? '#00ccff' : '#ff6666';
         this.diaTextEl.innerText = line.text;
 
-        // [연출] 말하는 사람에게 카메라 포커스
         const speaker = this.units.find(u => u.name === line.name && !u.isDead());
         if (speaker) {
             const viewW = this.renderer.canvas.width;
@@ -186,13 +244,15 @@ export class GameManager {
             
             this.gridMap.load(stage1);
             
+            // 1. 적군 배치
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
-                const newUnit = new Unit(uConfig, classInfo);
+                const newUnit = new Unit(uConfig, classInfo, null); // 적군은 아이템 없음
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
 
+            // 2. 아군 배치
             const spawnCandidates = [];
             for(let y=1; y<=4; y++) {
                 for(let x=1; x<=4; x++) {
@@ -205,73 +265,63 @@ export class GameManager {
 
             this.selectedRoster.forEach((charId, index) => {
                 if (index >= spawnCandidates.length) return;
+                
+                // 로스터 정보 가져오기
                 const charData = this.roster.find(c => c.id === charId);
                 const classInfo = this.classes[charData.class];
                 const pos = spawnCandidates[index];
 
+                // [핵심] 장착 아이템 정보 찾기
+                let itemInfo = null;
+                if (charData.equippedItemId) {
+                    itemInfo = this.items.find(i => i.id === charData.equippedItemId);
+                }
+
+                // 유닛 생성 시 아이템 정보 전달
                 const newUnit = new Unit({
                     id: charData.id, name: charData.name, class: charData.class, team: 'blue',
                     x: pos.x, y: pos.y
-                }, classInfo);
+                }, classInfo, itemInfo);
+                
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
 
-        } catch (e) {
-        }
+        } catch (e) { console.error(e); }
     }
 
+    // --- 이하 기존 로직 (Input, Loop, Resize 등) ---
     handleResize() {
         const wrapper = document.querySelector('.game-wrapper');
-        const w = wrapper.clientWidth;
-        const h = wrapper.clientHeight;
+        const w = wrapper.clientWidth; const h = wrapper.clientHeight;
         this.renderer.resize(w, h);
         if(this.gridMap.cols > 0)
             this.renderer.updateCamera(this.renderer.camera.x, this.renderer.camera.y, this.gridMap.cols, this.gridMap.rows);
     }
-
     handleZoom(delta) {
         const oldSize = this.renderer.tileSize;
         let newSize = oldSize + delta;
-        if (newSize < 20) newSize = 20;
-        if (newSize > 80) newSize = 80;
+        if (newSize < 20) newSize = 20; if (newSize > 80) newSize = 80;
         if (oldSize === newSize) return;
-
-        const viewW = this.renderer.canvas.width;
-        const viewH = this.renderer.canvas.height;
-        const centerX = this.renderer.camera.x + viewW / 2;
-        const centerY = this.renderer.camera.y + viewH / 2;
+        const viewW = this.renderer.canvas.width; const viewH = this.renderer.canvas.height;
+        const centerX = this.renderer.camera.x + viewW / 2; const centerY = this.renderer.camera.y + viewH / 2;
         const ratio = newSize / oldSize;
-        const newCenterX = centerX * ratio;
-        const newCenterY = centerY * ratio;
-
+        const newCenterX = centerX * ratio; const newCenterY = centerY * ratio;
         this.renderer.setTileSize(newSize);
         this.units.forEach(u => {
             u.tileSize = newSize; 
-            if (!u.isMoving) {
-                u.pixelX = u.x * newSize; u.pixelY = u.y * newSize;
-                u.targetPixelX = u.x * newSize; u.targetPixelY = u.y * newSize;
-            } else {
-                u.pixelX *= ratio; u.pixelY *= ratio;
-                u.targetPixelX *= ratio; u.targetPixelY *= ratio;
-            }
+            if (!u.isMoving) { u.pixelX = u.x * newSize; u.pixelY = u.y * newSize; u.targetPixelX = u.x * newSize; u.targetPixelY = u.y * newSize; }
+            else { u.pixelX *= ratio; u.pixelY *= ratio; u.targetPixelX *= ratio; u.targetPixelY *= ratio; }
         });
         this.renderer.updateCamera(newCenterX - viewW / 2, newCenterY - viewH / 2, this.gridMap.cols, this.gridMap.rows);
     }
-
     getInputPos(evt) {
-        const canvas = this.renderer.canvas;
-        const rect = canvas.getBoundingClientRect();
-        let clientX = evt.clientX;
-        let clientY = evt.clientY;
-        if (evt.touches && evt.touches.length > 0) {
-            clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY;
-        } else if (evt.changedTouches && evt.changedTouches.length > 0) {
-            clientX = evt.changedTouches[0].clientX; clientY = evt.changedTouches[0].clientY;
-        }
+        const canvas = this.renderer.canvas; const rect = canvas.getBoundingClientRect();
+        let clientX = evt.clientX; let clientY = evt.clientY;
+        if (evt.touches && evt.touches.length > 0) { clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY; }
+        else if (evt.changedTouches && evt.changedTouches.length > 0) { clientX = evt.changedTouches[0].clientX; clientY = evt.changedTouches[0].clientY; }
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
-
     setupInput() {
         const canvas = this.renderer.canvas;
         canvas.addEventListener('mousedown', (e) => this.handleStart(e));
@@ -289,75 +339,53 @@ export class GameManager {
             }
         });
     }
-
     handleStart(e) {
         if (e.cancelable) e.preventDefault();
-        
-        // [대화 모드] 클릭 시 대화 진행
-        if (this.gameState === 'DIALOGUE') {
-            this.advanceDialogue();
-            return;
-        }
-
+        if (this.gameState === 'DIALOGUE') { this.advanceDialogue(); return; }
         if (this.gameOver) { location.reload(); return; }
         if (this.gameState === 'ACTION_SELECT') return;
         this.renderer.canvas.style.cursor = 'grabbing';
-        this.isInputDown = true;
-        this.isDragging = false;
+        this.isInputDown = true; this.isDragging = false;
         const pos = this.getInputPos(e);
-        this.dragStartX = pos.x;
-        this.dragStartY = pos.y;
-        this.cameraStartX = this.renderer.camera.x;
-        this.cameraStartY = this.renderer.camera.y;
+        this.dragStartX = pos.x; this.dragStartY = pos.y;
+        this.cameraStartX = this.renderer.camera.x; this.cameraStartY = this.renderer.camera.y;
     }
-
     handleMove(e) {
         if (e.cancelable) e.preventDefault();
         if (this.gameOver || this.gameState === 'DIALOGUE') return;
         const pos = this.getInputPos(e);
         if (this.isInputDown) {
-            const dx = pos.x - this.dragStartX;
-            const dy = pos.y - this.dragStartY;
+            const dx = pos.x - this.dragStartX; const dy = pos.y - this.dragStartY;
             if (!this.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) this.isDragging = true;
             if (this.isDragging) {
-                const newCamX = this.cameraStartX - dx;
-                const newCamY = this.cameraStartY - dy;
+                const newCamX = this.cameraStartX - dx; const newCamY = this.cameraStartY - dy;
                 this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
                 return; 
             }
         }
         if (!this.isDragging && !('ontouchstart' in window)) {
-            const worldX = pos.x + this.renderer.camera.x;
-            const worldY = pos.y + this.renderer.camera.y;
-            const tx = Math.floor(worldX / this.renderer.tileSize);
-            const ty = Math.floor(worldY / this.renderer.tileSize);
+            const worldX = pos.x + this.renderer.camera.x; const worldY = pos.y + this.renderer.camera.y;
+            const tx = Math.floor(worldX / this.renderer.tileSize); const ty = Math.floor(worldY / this.renderer.tileSize);
             if (tx === this.lastHoverX && ty === this.lastHoverY) return;
-            this.lastHoverX = tx;
-            this.lastHoverY = ty;
+            this.lastHoverX = tx; this.lastHoverY = ty;
             const hoverUnit = this.getUnitAt(tx, ty);
             this.uiManager.updateUnit(hoverUnit);
             const terrainType = this.gridMap.getTerrain(tx, ty);
             if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
         }
     }
-
     async handleEnd(e) {
         if (e.cancelable) e.preventDefault();
-        this.isInputDown = false;
-        this.renderer.canvas.style.cursor = 'crosshair';
-        
+        this.isInputDown = false; this.renderer.canvas.style.cursor = 'crosshair';
         if (this.gameState === 'DIALOGUE') return;
         if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
         if (this.isDragging) { this.isDragging = false; return; }
         if (this.turn === 'ENEMY' || this.isAnimating) return;
         const pos = this.getInputPos(e);
-        const worldX = pos.x + this.renderer.camera.x;
-        const worldY = pos.y + this.renderer.camera.y;
-        const tx = Math.floor(worldX / this.renderer.tileSize);
-        const ty = Math.floor(worldY / this.renderer.tileSize);
+        const worldX = pos.x + this.renderer.camera.x; const worldY = pos.y + this.renderer.camera.y;
+        const tx = Math.floor(worldX / this.renderer.tileSize); const ty = Math.floor(worldY / this.renderer.tileSize);
         await this.handleClick(tx, ty);
     }
-
     async handleClick(x, y) {
         if (this.gameState === 'IDLE') {
             const clickedUnit = this.getUnitAt(x, y);
@@ -370,18 +398,10 @@ export class GameManager {
         }
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
-                if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
-                    this.movableTiles = [];
-                    this.onMoveFinished();
-                    return;
-                }
+                if (x === this.selectedUnit.x && y === this.selectedUnit.y) { this.movableTiles = []; this.onMoveFinished(); return; }
                 const path = this.pathFinder.findPath(this.selectedUnit, x, y, this.gridMap, this.units);
-                if (path && path.length > 0) {
-                    this.selectedUnit.moveAlong(path);
-                    this.movableTiles = []; 
-                    this.isAnimating = true;
-                    this.gameState = 'MOVING';
-                } else { this.resetSelection(); }
+                if (path && path.length > 0) { this.selectedUnit.moveAlong(path); this.movableTiles = []; this.isAnimating = true; this.gameState = 'MOVING'; }
+                else { this.resetSelection(); }
             } else { this.resetSelection(); }
             return;
         }
@@ -401,13 +421,8 @@ export class GameManager {
             }
         }
     }
-
     onMoveFinished() { this.isAnimating = false; this.openActionMenu(); }
-    openActionMenu() {
-        this.gameState = 'ACTION_SELECT';
-        this.attackableTiles = [];
-        this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait());
-    }
+    openActionMenu() { this.gameState = 'ACTION_SELECT'; this.attackableTiles = []; this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait()); }
     openSkillMenu() { this.uiManager.showSkillMenu(this.selectedUnit, (skillId) => this.selectSkill(skillId)); }
     selectAttack() { this.selectedAction = { type: 'attack' }; this.calculateRange(this.selectedUnit.attackRange); this.gameState = 'TARGETING'; }
     selectSkill(skillId) { this.selectedAction = { type: 'skill', id: skillId }; const skill = SKILLS[skillId]; this.calculateRange(skill.range); this.gameState = 'TARGETING'; }
@@ -417,8 +432,7 @@ export class GameManager {
         for (let dy = -range; dy <= range; dy++) {
             for (let dx = -range; dx <= range; dx++) {
                 if (Math.abs(dx) + Math.abs(dy) <= range) {
-                    const nx = this.selectedUnit.x + dx;
-                    const ny = this.selectedUnit.y + dy;
+                    const nx = this.selectedUnit.x + dx; const ny = this.selectedUnit.y + dy;
                     if (this.gridMap.isValid(nx, ny)) { this.attackableTiles.push({x: nx, y: ny}); }
                 }
             }
@@ -427,8 +441,7 @@ export class GameManager {
     finishTurnSequence(targetUnit) { this.isAnimating = false; this.checkDeadUnits(); this.endAction(); if(targetUnit) this.uiManager.updateUnit(targetUnit); }
     endAction() {
         if (this.selectedUnit) { this.selectedUnit.endAction(); }
-        this.resetSelection();
-        this.uiManager.hideMenus();
+        this.resetSelection(); this.uiManager.hideMenus();
         if (this.checkWinCondition()) return;
         const activeBlues = this.units.filter(u => u.team === 'blue' && !u.isActionDone && !u.isDead());
         if (activeBlues.length === 0) { this.startEnemyTurn(); }
