@@ -1,240 +1,160 @@
-import { TERRAIN_DATA } from '../data/constants.js';
-
 export class Renderer {
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
-        this.tileSize = 40;
-        
+        this.tileSize = 40; 
         this.camera = { x: 0, y: 0 };
-        this.images = {}; 
-        
-        // 애니메이션 변수
-        this.frameCount = 0;
-        this.spriteCycle = 0; 
-        this.spriteFrame = 1;
-
-        this.loadImages();
     }
 
-    loadImages() {
-        // [이미지 로딩] 파일명은 정확해야 합니다 (대소문자 구별)
-        const charNames = ['caocao', 'enemy', 'guojia']; 
-        
-        charNames.forEach(name => {
-            const img = new Image();
-            img.src = `./assets/images/units/${name}.png`; // png가 아니면 .jpg로 수정
-            
-            img.onload = () => {
-                this.images[name] = img;
-            };
-            // 에러가 나도 게임이 멈추지 않도록 처리
-            img.onerror = () => {
-                console.warn(`이미지 로드 실패: ${name} (기본 도형으로 표시됨)`);
-            };
-        });
-    }
-
+    // [신규] 캔버스 해상도 리사이징
     resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
-        this.ctx.imageSmoothingEnabled = false; // 도트 깨짐 방지
+        // 캔버스 크기가 바뀌었으므로 렌더링 컨텍스트의 설정이 초기화될 수 있음(폰트 등)
+        // 필요하다면 여기서 다시 설정
     }
 
-    setTileSize(size) {
-        this.tileSize = size;
+    setTileSize(newSize) {
+        this.tileSize = newSize;
     }
 
-    updateCamera(targetX, targetY, mapCols, mapRows) {
+    updateCamera(x, y, mapCols, mapRows) {
         const viewW = this.canvas.width;
         const viewH = this.canvas.height;
+        const mapW = mapCols * this.tileSize;
+        const mapH = mapRows * this.tileSize;
+
+        this.camera.x = x;
+        this.camera.y = y;
+
+        if (this.camera.x < 0) this.camera.x = 0;
+        if (this.camera.y < 0) this.camera.y = 0;
         
-        const maxX = (mapCols * this.tileSize) - viewW;
-        const maxY = (mapRows * this.tileSize) - viewH;
+        if (mapW > viewW) {
+            if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
+        } else {
+            // 화면이 맵보다 크면 중앙 정렬하거나 0에 둠. 여기선 0
+            this.camera.x = 0;
+        }
 
-        let camX = targetX; 
-        let camY = targetY;
-
-        if (maxX > 0) camX = Math.max(0, Math.min(camX, maxX));
-        else camX = -(viewW - (mapCols * this.tileSize)) / 2;
-
-        if (maxY > 0) camY = Math.max(0, Math.min(camY, maxY));
-        else camY = -(viewH - (mapRows * this.tileSize)) / 2;
-
-        this.camera.x = Math.floor(camX);
-        this.camera.y = Math.floor(camY);
-    }
-
-    clear() {
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        this.frameCount++;
-        if (this.frameCount > 15) { 
-            this.frameCount = 0;
-            const cycle = [0, 1, 2, 1];
-            this.spriteCycle = (this.spriteCycle + 1) % 4;
-            this.spriteFrame = cycle[this.spriteCycle];
+        if (mapH > viewH) {
+            if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
+        } else {
+            this.camera.y = 0;
         }
     }
 
-    // [수정] 복잡한 계산을 빼고, 전체 맵을 순회하며 그리는 안전한 방식
+    clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
     drawMap(gridMap) {
-        if (!gridMap) return;
-
-        // gridMap.rows나 cols가 없으면 기본값 처리
-        const rows = gridMap.rows || 20;
-        const cols = gridMap.cols || 20;
-
-        for (let y = 0; y < rows; y++) {
-            for (let x = 0; x < cols; x++) {
-                // 화면 밖이면 그리지 않음 (간단한 최적화)
-                const px = Math.floor(x * this.tileSize - this.camera.x);
-                const py = Math.floor(y * this.tileSize - this.camera.y);
+        if (!gridMap.data) return;
+        
+        for (let y = 0; y < gridMap.rows; y++) {
+            for (let x = 0; x < gridMap.cols; x++) {
+                const px = x * this.tileSize - this.camera.x;
+                const py = y * this.tileSize - this.camera.y;
 
                 if (px < -this.tileSize || py < -this.tileSize || 
-                    px > this.canvas.width || py > this.canvas.height) {
-                    continue;
-                }
+                    px > this.canvas.width || py > this.canvas.height) continue;
 
-                if (gridMap.isValid(x, y)) {
-                    const terrain = gridMap.getTerrain(x, y);
+                const type = gridMap.data[y][x];
+                if (type === 0) this.ctx.fillStyle = '#4ea24e';
+                else if (type === 1) this.ctx.fillStyle = '#8b4513';
+                else if (type === 2) this.ctx.fillStyle = '#4444ff';
 
-                    // 지형 색상 (하드코딩으로 안전하게)
-                    if (terrain === 1) this.ctx.fillStyle = '#8B4513'; // 산 (갈색)
-                    else if (terrain === 2) this.ctx.fillStyle = '#4169E1'; // 강 (파란색)
-                    else this.ctx.fillStyle = '#228B22'; // 평지 (초록색)
-                    
-                    this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize);
-                    
-                    // 격자(테두리) 그리기
-                    this.ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-                    this.ctx.lineWidth = 1;
-                    this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
-                }
+                this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+                this.ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
             }
         }
     }
 
-    drawHighlights(tiles, type) {
-        this.ctx.fillStyle = type === 'move' ? 'rgba(0, 0, 255, 0.3)' : 'rgba(255, 0, 0, 0.4)';
-        tiles.forEach(t => {
-            const px = Math.floor(t.x * this.tileSize - this.camera.x);
-            const py = Math.floor(t.y * this.tileSize - this.camera.y);
+    drawHighlights(tiles, colorType = 'move') {
+        if(colorType === 'move') {
+            this.ctx.fillStyle = 'rgba(0, 0, 255, 0.4)';
+            this.ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)';
+        } else if(colorType === 'attack') {
+            this.ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
+            this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        }
+
+        tiles.forEach(tile => {
+            const px = tile.x * this.tileSize - this.camera.x;
+            const py = tile.y * this.tileSize - this.camera.y;
             this.ctx.fillRect(px, py, this.tileSize, this.tileSize);
+            this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
         });
     }
 
     drawCursor(unit) {
-        if (!unit) return;
-        const px = Math.floor(unit.x * this.tileSize - this.camera.x);
-        const py = Math.floor(unit.y * this.tileSize - this.camera.y);
-        this.ctx.strokeStyle = '#ffff00';
-        this.ctx.lineWidth = 2;
+        if(!unit) return;
+        const px = unit.x * this.tileSize - this.camera.x;
+        const py = unit.y * this.tileSize - this.camera.y;
+        
+        this.ctx.strokeStyle = '#FFFF00';
+        this.ctx.lineWidth = 3;
         this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
+        this.ctx.lineWidth = 1;
     }
 
     drawUnits(units) {
-        const sortedUnits = [...units].sort((a, b) => a.pixelY - b.pixelY);
+        units.forEach(unit => {
+            const px = unit.pixelX + unit.offsetX - this.camera.x;
+            const py = unit.pixelY + unit.offsetY - this.camera.y;
+            
+            if (px < -this.tileSize || py < -this.tileSize || px > this.canvas.width || py > this.canvas.height) return;
 
-        sortedUnits.forEach(unit => {
-            if(unit.isDead()) return;
+            const size = this.tileSize;
+            const padding = size * 0.1;
 
-            const px = Math.floor(unit.pixelX + unit.offsetX - this.camera.x);
-            const py = Math.floor(unit.pixelY + unit.offsetY - this.camera.y);
-
-            // 이미지 찾기
-            let img = null;
-            if (unit.name === '조조') img = this.images['caocao'];
-            else if (unit.team === 'red') img = this.images['enemy'];
-            else img = this.images['caocao'];
-
-            if (img && img.complete && img.naturalWidth > 0) {
-                this.drawSprite(this.ctx, img, unit, px, py);
+            if (unit.isActionDone) {
+                this.ctx.fillStyle = '#888888';
             } else {
-                // 이미지가 없으면 동그라미 그리기
-                this.drawFallbackUnit(this.ctx, unit, px, py);
+                this.ctx.fillStyle = unit.team === 'blue' ? '#0000AA' : '#AA0000';
             }
+            
+            this.ctx.fillRect(px + padding, py + padding, size - padding*2, size - padding*2);
 
-            this.drawHpBar(this.ctx, unit, px, py);
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = `${Math.floor(size/4)}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(unit.name, px + size/2, py + size/2 + size/10);
+
+            const hpRatio = unit.currentHp / unit.maxHp;
+            const barHeight = Math.max(2, size * 0.1);
+
+            this.ctx.fillStyle = '#333';
+            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2), barHeight);
+            
+            if(hpRatio > 0.5) this.ctx.fillStyle = '#00FF00';
+            else if(hpRatio > 0.25) this.ctx.fillStyle = '#FFFF00';
+            else this.ctx.fillStyle = '#FF0000';
+            
+            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2) * hpRatio, barHeight);
         });
-    }
-
-    drawFallbackUnit(ctx, unit, x, y) {
-        ctx.fillStyle = unit.team === 'blue' ? '#4444ff' : '#ff4444';
-        if (unit.isActionDone) ctx.fillStyle = '#555555';
-        
-        ctx.beginPath();
-        ctx.arc(x + this.tileSize/2, y + this.tileSize/2, this.tileSize/2 - 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    drawHpBar(ctx, unit, x, y) {
-        const hpPct = unit.currentHp / unit.maxHp;
-        ctx.fillStyle = '#000';
-        ctx.fillRect(x + 2, y - 6, this.tileSize - 4, 4);
-        ctx.fillStyle = hpPct > 0.5 ? '#0f0' : '#f00';
-        ctx.fillRect(x + 2, y - 6, (this.tileSize - 4) * hpPct, 4);
-    }
-
-    drawSprite(ctx, img, unit, x, y) {
-        // 이미지 비율로 칸 수 추측 (4열 or 3열)
-        const ratio = img.width / img.height;
-        let cols = 3;
-        if (ratio >= 0.9) cols = 4; // 4칸짜리 이미지로 추정
-
-        const rows = 4; 
-        const frameW = img.width / cols;
-        const frameH = img.height / rows;
-
-        let dir = unit.direction !== undefined ? unit.direction : 0;
-        let colIndex = 1; // 차렷
-
-        if (unit.isMoving) {
-            colIndex = this.spriteFrame;
-        }
-        
-        // 4칸짜리 이미지인데 인덱스가 범위 넘지 않도록 방어
-        if (colIndex >= cols) colIndex = 1;
-
-        const drawW = this.tileSize * 1.4; 
-        const scale = drawW / frameW;
-        const drawH = frameH * scale;
-
-        const drawX = x + (this.tileSize - drawW) / 2;
-        const drawY = y + (this.tileSize - drawH) - 5;
-
-        try {
-            ctx.drawImage(
-                img,
-                colIndex * frameW, dir * frameH, frameW, frameH, 
-                drawX, drawY, drawW, drawH
-            );
-        } catch (e) {
-            // 그리기 오류 무시
-        }
     }
 
     drawEffects(effectManager) {
-        effectManager.effects.forEach(eff => {
-            const px = Math.floor(eff.x * this.tileSize - this.camera.x + this.tileSize/2);
-            const py = Math.floor(eff.y * this.tileSize - this.camera.y);
-            this.ctx.fillStyle = eff.color;
-            this.ctx.font = 'bold 16px sans-serif';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(eff.text, px, py - eff.life);
-        });
+        effectManager.draw(this.ctx, this.camera, this.tileSize);
     }
 
     drawGameOver(result) {
-        this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
         this.ctx.fillStyle = result === 'WIN' ? '#00ff00' : '#ff0000';
-        this.ctx.font = 'bold 40px sans-serif';
+        this.ctx.font = 'bold 48px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(result === 'WIN' ? "VICTORY" : "DEFEAT", this.canvas.width/2, this.canvas.height/2);
+        this.ctx.textBaseline = 'middle';
+        const text = result === 'WIN' ? "VICTORY!" : "GAME OVER";
+        this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '24px Arial';
+        this.ctx.fillText("Click to Restart", this.canvas.width / 2, this.canvas.height / 2 + 50);
+        this.ctx.restore();
     }
 }
