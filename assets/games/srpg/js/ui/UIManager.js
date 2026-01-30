@@ -7,12 +7,12 @@ export class UIManager {
         
         this.hpBarEl = document.getElementById('ui-hp-bar');
         this.hpTextEl = document.getElementById('ui-hp-text');
-        this.mpBarEl = document.getElementById('ui-mp-bar'); // 신규
-        this.mpTextEl = document.getElementById('ui-mp-text'); // 신규
+        this.mpBarEl = document.getElementById('ui-mp-bar');
+        this.mpTextEl = document.getElementById('ui-mp-text');
         
         this.atkEl = document.getElementById('ui-atk');
         this.defEl = document.getElementById('ui-def');
-        this.intEl = document.getElementById('ui-int'); // 신규
+        this.intEl = document.getElementById('ui-int');
 
         this.terrainEl = document.getElementById('ui-terrain');
         this.terrainEffectEl = document.getElementById('ui-terrain-effect');
@@ -20,7 +20,6 @@ export class UIManager {
         this.unitPanel = document.getElementById('ui-unit-panel');
         this.statsPanel = document.getElementById('ui-stats-panel');
 
-        // 메뉴 엘리먼트
         this.actionMenu = document.getElementById('action-menu');
         this.skillMenu = document.getElementById('skill-menu');
         this.btnAttack = document.getElementById('btn-attack');
@@ -47,13 +46,11 @@ export class UIManager {
         this.defEl.innerText = unit.def;
         this.intEl.innerText = unit.int;
 
-        // HP
         const hpPct = (unit.currentHp / unit.maxHp) * 100;
         this.hpBarEl.style.width = `${hpPct}%`;
         this.hpTextEl.innerText = `HP ${unit.currentHp}/${unit.maxHp}`;
         this.hpBarEl.style.backgroundColor = hpPct > 50 ? '#00ff00' : (hpPct > 25 ? '#ffff00' : '#ff0000');
 
-        // MP
         const mpPct = unit.maxMp > 0 ? (unit.currentMp / unit.maxMp) * 100 : 0;
         this.mpBarEl.style.width = `${mpPct}%`;
         this.mpTextEl.innerText = `MP ${unit.currentMp}/${unit.maxMp}`;
@@ -64,42 +61,39 @@ export class UIManager {
         this.terrainEffectEl.innerText = type === 1 ? "방어 +10%" : (type === 2 ? "회피 -10%" : "-");
     }
 
-    // 행동 메뉴 보이기
     showActionMenu(unit, onAttack, onMagic, onWait) {
         this.actionMenu.style.display = 'flex';
-        this.skillMenu.style.display = 'none'; // 스킬메뉴는 닫음
+        this.skillMenu.style.display = 'none';
 
-        // 버튼 이벤트 연결 (일회성)
-        this.btnAttack.onclick = () => {
-            this.hideMenus();
-            onAttack();
-        };
-        this.btnMagic.onclick = () => {
-            this.hideMenus();
-            onMagic(); // 스킬 메뉴 호출
-        };
-        this.btnWait.onclick = () => {
-            this.hideMenus();
-            onWait();
-        };
+        this.btnAttack.onclick = () => { this.hideMenus(); onAttack(); };
+        this.btnMagic.onclick = () => { this.hideMenus(); onMagic(); };
+        this.btnWait.onclick = () => { this.hideMenus(); onWait(); };
 
-        // MP 없으면 책략 버튼 비활성화
-        this.btnMagic.disabled = (unit.currentMp < 5); 
+        // [핵심] 유닛이 가진 스킬 유무와 MP 잔량 확인
+        const unitSkills = unit.skills || [];
+        if (unitSkills.length === 0) {
+            this.btnMagic.disabled = true;
+            this.btnMagic.innerText = "책략 (없음)";
+        } else {
+            const minCost = Math.min(...unitSkills.map(id => SKILLS[id].cost));
+            if (unit.currentMp < minCost) {
+                this.btnMagic.disabled = true;
+                this.btnMagic.innerText = "책략 (MP부족)";
+            } else {
+                this.btnMagic.disabled = false;
+                this.btnMagic.innerText = "책략";
+            }
+        }
     }
 
-    // 스킬 메뉴 보이기
     showSkillMenu(unit, onSkillSelect) {
         this.skillMenu.style.display = 'flex';
         this.actionMenu.style.display = 'none';
 
-        // 기존 버튼(취소 제외) 초기화
-        // 취소 버튼은 HTML에 하드코딩 되어있으므로, 그 앞부분에 추가
-        // 여기서는 간단하게 innerHTML로 덮어쓰기 (취소 버튼 포함 재작성)
         let html = `<div class="menu-title">책략 선택 (MP ${unit.currentMp})</div>`;
         
-        // 간단한 예시: 책사는 화계, 나머지는 구원만 있다고 가정
-        // 실제로는 유닛별 스킬 리스트가 있어야 함
-        const availableSkills = unit.className === '책사' ? ['fire', 'heal'] : ['heal'];
+        // 유닛의 스킬 목록을 순회하며 버튼 생성
+        const availableSkills = unit.skills || [];
 
         availableSkills.forEach(skillId => {
             const skill = SKILLS[skillId];
@@ -112,7 +106,6 @@ export class UIManager {
         html += `<button class="menu-btn" onclick="cancelSkill()">뒤로가기</button>`;
         this.skillMenu.innerHTML = html;
 
-        // 이벤트 연결
         availableSkills.forEach(skillId => {
             const btn = document.getElementById(`skill-${skillId}`);
             if (btn && !btn.disabled) {

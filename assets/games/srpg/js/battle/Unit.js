@@ -22,7 +22,6 @@ export class Unit {
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
         
-        // [수정] 스탯 초기화 (MP, INT 추가)
         this.maxHp = classInfo.hp;
         this.currentHp = classInfo.hp;
         this.maxMp = classInfo.mp || 0;
@@ -30,7 +29,10 @@ export class Unit {
         
         this.atk = classInfo.atk;
         this.def = classInfo.def;
-        this.int = classInfo.int || 10; // 정신력
+        this.int = classInfo.int || 10;
+        
+        // [중요] 스킬 목록 로드
+        this.skills = classInfo.skills || [];
 
         this.isActionDone = false;
     }
@@ -114,13 +116,11 @@ export class Unit {
         if (this.currentHp < 0) this.currentHp = 0; 
     }
     
-    // [추가] 힐 받기
     heal(amount) {
         this.currentHp += amount;
         if (this.currentHp > this.maxHp) this.currentHp = this.maxHp;
     }
 
-    // [추가] MP 사용
     useMp(amount) {
         if (this.currentMp >= amount) {
             this.currentMp -= amount;

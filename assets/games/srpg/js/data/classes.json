@@ -7,7 +7,8 @@
     "mp": 20,
     "atk": 30,
     "def": 20,
-    "int": 15
+    "int": 15,
+    "skills": ["smash"]
   },
   "cavalry": {
     "name": "기병",
@@ -17,7 +18,8 @@
     "mp": 10,
     "atk": 35,
     "def": 15,
-    "int": 10
+    "int": 10,
+    "skills": ["smash"]
   },
   "archer": {
     "name": "궁병",
@@ -27,7 +29,8 @@
     "mp": 30,
     "atk": 25,
     "def": 10,
-    "int": 20
+    "int": 20,
+    "skills": []
   },
   "mage": {
     "name": "책사",
@@ -37,6 +40,7 @@
     "mp": 100,
     "atk": 10,
     "def": 5,
-    "int": 40
+    "int": 40,
+    "skills": ["fire", "heal"]
   }
 }
