@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SRPG Engine</title>
     <style>
         body {
@@ -9,53 +10,89 @@
             justify-content: center; align-items: center; height: 100vh;
             color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden;
         }
+        
+        /* [핵심] 반응형 컨테이너 */
         .game-wrapper {
-            position: relative; width: 640px; height: 480px;
+            position: relative;
+            width: 100%;       /* 화면 꽉 채우기 */
+            max-width: 640px;  /* 하지만 640px은 넘지 않기 */
+            aspect-ratio: 4 / 3; /* 4:3 비율 유지 */
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
         }
-        canvas { background: #000; display: block; cursor: crosshair; }
 
-        /* 하단 상태창 */
+        /* 캔버스가 컨테이너 크기에 맞춰 늘어남 */
+        canvas { 
+            background: #000; 
+            display: block; 
+            width: 100%; 
+            height: 100%;
+            cursor: crosshair; 
+        }
+
+        /* 턴 표시기 (HTML로 분리) */
+        #turn-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            pointer-events: none;
+            z-index: 15;
+            border: 1px solid #777;
+        }
+
+        /* 하단 상태창 (반응형 적용) */
         #game-ui {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 100px;
-            background: rgba(0, 0, 0, 0.85); border-top: 2px solid #555;
-            box-sizing: border-box; display: flex; padding: 10px 20px;
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 20%; /* 높이를 %로 */
+            background: rgba(0, 0, 0, 0.9); border-top: 1px solid #555;
+            box-sizing: border-box; display: flex; padding: 5px 10px;
             justify-content: space-between; align-items: center;
             pointer-events: none; z-index: 10;
         }
-        .unit-info { display: flex; flex-direction: column; gap: 5px; width: 200px; }
-        .unit-name { font-size: 18px; font-weight: bold; color: #ffcc00; }
-        .unit-class { font-size: 12px; color: #aaa; }
-        .hp-bar-bg { width: 100%; height: 8px; background: #333; border: 1px solid #555; border-radius: 4px; overflow: hidden; margin-bottom: 2px;}
+
+        /* 좁은 화면 대응 */
+        .unit-info { display: flex; flex-direction: column; gap: 2px; width: 35%; }
+        .unit-name { font-size: 14px; font-weight: bold; color: #ffcc00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unit-class { font-size: 10px; color: #aaa; }
+        .hp-bar-bg { width: 100%; height: 6px; background: #333; border: 1px solid #555; border-radius: 2px; margin-bottom: 2px;}
         .hp-bar-fill { width: 100%; height: 100%; background: #00ff00; transition: width 0.2s; }
-        /* MP 바 추가 */
-        .mp-bar-bg { width: 100%; height: 6px; background: #222; border: 1px solid #444; border-radius: 3px; overflow: hidden; }
+        .mp-bar-bg { width: 100%; height: 4px; background: #222; border: 1px solid #444; border-radius: 2px; }
         .mp-bar-fill { width: 100%; height: 100%; background: #0088ff; transition: width 0.2s; }
-        .status-text { font-size: 11px; text-align: right; color: #ddd; }
+        .status-text { font-size: 9px; text-align: right; color: #ddd; display: none; /* 공간 부족시 숨김 */ }
 
-        .stats-info { display: flex; gap: 15px; font-size: 14px; font-weight: bold; }
+        /* 스탯 정보 (좁으면 숨김) */
+        .stats-info { display: flex; gap: 8px; font-size: 12px; font-weight: bold; width: 35%; justify-content: center; }
         .stat-box { text-align: center; }
-        .stat-box span { display: block; font-size: 10px; color: #aaa; font-weight: normal; }
+        .stat-box span { display: block; font-size: 9px; color: #aaa; font-weight: normal; }
 
-        .terrain-info { text-align: right; width: 120px; }
-        .terrain-name { font-size: 16px; font-weight: bold; color: #88ccff; }
+        .terrain-info { text-align: right; width: 25%; }
+        .terrain-name { font-size: 12px; font-weight: bold; color: #88ccff; }
 
-        /* [신규] 행동 선택 메뉴 */
+        /* 모바일용 미디어 쿼리 */
+        @media (max-width: 500px) {
+            .stats-info { display: none; } /* 너무 좁으면 스탯창 숨김 */
+            .unit-info { width: 60%; }
+            .terrain-info { width: 35%; }
+            #turn-indicator { font-size: 12px; padding: 3px 6px; }
+        }
+
+        /* 행동 메뉴 */
         #action-menu, #skill-menu {
             position: absolute;
             top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(40, 40, 40, 0.95);
             border: 2px solid #ffcc00; border-radius: 8px;
             padding: 10px; display: none; flex-direction: column; gap: 8px;
-            z-index: 20; min-width: 150px;
+            z-index: 20; min-width: 140px;
         }
         .menu-btn {
             background: #555; color: white; border: 1px solid #777;
             padding: 10px; cursor: pointer; text-align: center; font-size: 14px;
-            transition: background 0.2s;
         }
-        .menu-btn:hover { background: #777; }
-        .menu-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
         .menu-title { text-align: center; font-size: 12px; color: #ffcc00; margin-bottom: 5px; }
 
     </style>
@@ -64,6 +101,8 @@
     <div class="game-wrapper">
         <canvas id="gameCanvas" width="640" height="480"></canvas>
         
+        <div id="turn-indicator">TURN: PLAYER</div>
+
         <div id="action-menu">
             <div class="menu-title">행동 선택</div>
             <button class="menu-btn" id="btn-attack">공격</button>
@@ -80,12 +119,10 @@
             <div class="unit-info" id="ui-unit-panel" style="opacity: 0;">
                 <div class="unit-name" id="ui-name">-</div>
                 <div class="unit-class" id="ui-class">-</div>
-                
                 <div class="hp-bar-bg"><div class="hp-bar-fill" id="ui-hp-bar"></div></div>
-                <div class="status-text" id="ui-hp-text">HP -/-</div>
-                
                 <div class="mp-bar-bg"><div class="mp-bar-fill" id="ui-mp-bar"></div></div>
-                <div class="status-text" id="ui-mp-text">MP -/-</div>
+                <div class="status-text" id="ui-hp-text"></div>
+                <div class="status-text" id="ui-mp-text"></div>
             </div>
 
             <div class="stats-info" id="ui-stats-panel" style="opacity: 0;">
@@ -96,7 +133,7 @@
 
             <div class="terrain-info">
                 <div class="terrain-name" id="ui-terrain">-</div>
-                <div id="ui-terrain-effect" style="font-size:12px; color:#aaa;">-</div>
+                <div id="ui-terrain-effect" style="font-size:10px; color:#aaa;">-</div>
             </div>
         </div>
     </div>
@@ -105,8 +142,6 @@
         import { GameManager } from './js/core/GameManager.js';
         const game = new GameManager();
         game.init();
-        
-        // 전역 함수로 취소 버튼 연결
         window.cancelSkill = () => game.openActionMenu(); 
     </script>
 </body>
