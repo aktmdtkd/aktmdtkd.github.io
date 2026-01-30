@@ -1,54 +1,46 @@
 import { SKILLS, TERRAIN_DATA } from '../data/constants.js';
 
-export { SKILLS }; // 다른 곳에서 쓸 수 있게 내보냄
+export { SKILLS }; 
 
 export class BattleSystem {
     constructor() {
-        this.gridMap = null; // GridMap 참조가 필요함
+        this.gridMap = null; 
     }
 
-    // GameManager에서 gridMap을 주입받기 위한 메서드
     setMap(gridMap) {
         this.gridMap = gridMap;
     }
 
-    // [수정] 지형 방어 보너스 적용
-    calculateDamage(attacker, defender) {
+    // [신규] 순수 데미지 계산 (랜덤 제외, 예측용)
+    getRawDamage(attacker, defender) {
         let defense = defender.def;
         
-        // 지형 보너스 확인
         if (this.gridMap) {
             const terrainType = this.gridMap.getTerrain(defender.x, defender.y);
             const tData = TERRAIN_DATA[terrainType];
             if (tData && tData.defBonus !== 0) {
-                // 방어력 증가 (퍼센트 적용)
-                // 예: 방어 10, 산(+20%) -> 10 + 2 = 12
-                // 방어 10, 강(-10%) -> 10 - 1 = 9
                 defense += Math.floor(defense * tData.defBonus);
-                console.log(`Terrain Bonus: ${tData.name} (${tData.defBonus * 100}%) applied to ${defender.name}`);
             }
         }
 
         let damage = attacker.atk - defense;
         if (damage <= 0) damage = 1;
-        const variance = (Math.random() * 0.2) + 0.9;
-        return Math.floor(damage * variance);
+        return damage;
     }
 
-    calculateSkillPower(attacker, defender, skill) {
+    // [신규] 순수 스킬 파워 계산 (랜덤 제외)
+    getRawSkillPower(attacker, defender, skill) {
         let basePower = 0;
         let finalValue = 0;
 
         if (skill.type === 'magic_damage') {
             basePower = attacker.int * skill.power;
-            // 마법은 지형 효과 무시 (일반적으로)
             finalValue = basePower - (defender.int * 0.5);
         } else if (skill.type === 'heal') {
             basePower = attacker.int * skill.power;
             finalValue = basePower;
         } else if (skill.type === 'phys_damage') {
             basePower = attacker.atk * skill.power;
-            // 물리 스킬은 지형 효과 적용
             let defense = defender.def;
             if (this.gridMap) {
                 const tType = this.gridMap.getTerrain(defender.x, defender.y);
@@ -60,6 +52,36 @@ export class BattleSystem {
 
         if (finalValue <= 1) finalValue = 1;
         return Math.floor(finalValue);
+    }
+
+    // [신규] 데미지 예측 메서드 (GameManager에서 호출)
+    predictDamage(attacker, defender, action) {
+        if (action.type === 'attack') {
+            const rawDmg = this.getRawDamage(attacker, defender);
+            return { min: Math.floor(rawDmg * 0.9), max: Math.ceil(rawDmg * 1.1), type: 'damage' };
+        } 
+        else if (action.type === 'skill') {
+            const skill = SKILLS[action.id];
+            const rawPower = this.getRawSkillPower(attacker, defender, skill);
+            
+            if (skill.type === 'heal') {
+                return { val: rawPower, type: 'heal' };
+            } else {
+                return { val: rawPower, type: 'damage' }; // 스킬은 랜덤이 없다고 가정 (현재 로직상)
+            }
+        }
+        return null;
+    }
+
+    // 실제 공격 실행 (랜덤 포함)
+    calculateDamage(attacker, defender) {
+        const baseDmg = this.getRawDamage(attacker, defender);
+        const variance = (Math.random() * 0.2) + 0.9;
+        return Math.floor(baseDmg * variance);
+    }
+
+    calculateSkillPower(attacker, defender, skill) {
+        return this.getRawSkillPower(attacker, defender, skill);
     }
 
     async executeAttack(attacker, defender, effectManager) {

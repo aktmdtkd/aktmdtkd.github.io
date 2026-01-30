@@ -17,7 +17,6 @@ export class GameManager {
         this.pathFinder = new PathFinder();
         this.battleSystem = new BattleSystem();
         
-        // [중요] BattleSystem에 맵 정보 주입
         this.battleSystem.setMap(this.gridMap);
 
         this.ai = new AI();
@@ -347,6 +346,8 @@ export class GameManager {
         if (e.cancelable) e.preventDefault();
         if (this.gameOver || this.gameState === 'DIALOGUE') return;
         const pos = this.getInputPos(e);
+        
+        // 1. 드래그 처리
         if (this.isInputDown) {
             const dx = pos.x - this.dragStartX; const dy = pos.y - this.dragStartY;
             if (!this.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) this.isDragging = true;
@@ -356,9 +357,30 @@ export class GameManager {
                 return; 
             }
         }
+
+        // 2. 호버 처리 (PC) 및 [신규] 데미지 예측 로직
         if (!this.isDragging && !('ontouchstart' in window)) {
             const worldX = pos.x + this.renderer.camera.x; const worldY = pos.y + this.renderer.camera.y;
             const tx = Math.floor(worldX / this.renderer.tileSize); const ty = Math.floor(worldY / this.renderer.tileSize);
+            
+            // 데미지 예측 (Targeting 모드일 때만)
+            if (this.gameState === 'TARGETING') {
+                const target = this.getUnitAt(tx, ty);
+                // 유효한 타겟이고 공격 범위 안에 있는지
+                const validTile = this.attackableTiles.some(t => t.x === tx && t.y === ty);
+                
+                if (target && validTile) {
+                    const prediction = this.battleSystem.predictDamage(this.selectedUnit, target, this.selectedAction);
+                    if (prediction) {
+                        this.uiManager.showDamagePreview(prediction, pos.x, pos.y); // 화면 좌표 전달
+                    }
+                } else {
+                    this.uiManager.hideDamagePreview();
+                }
+            } else {
+                this.uiManager.hideDamagePreview();
+            }
+
             if (tx === this.lastHoverX && ty === this.lastHoverY) return;
             this.lastHoverX = tx; this.lastHoverY = ty;
             const hoverUnit = this.getUnitAt(tx, ty);
@@ -370,6 +392,8 @@ export class GameManager {
     async handleEnd(e) {
         if (e.cancelable) e.preventDefault();
         this.isInputDown = false; this.renderer.canvas.style.cursor = 'crosshair';
+        this.uiManager.hideDamagePreview(); // 클릭하면 미리보기 숨김
+
         if (this.gameState === 'DIALOGUE') return;
         if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
         if (this.isDragging) { this.isDragging = false; return; }
@@ -421,48 +445,19 @@ export class GameManager {
         this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait());
     }
     openSkillMenu() { this.uiManager.showSkillMenu(this.selectedUnit, (skillId) => this.selectSkill(skillId)); }
-    
     selectAttack() { 
         this.selectedAction = { type: 'attack' }; 
         this.calculateRange(this.selectedUnit.attackRange);
-        
-        const hasEnemy = this.attackableTiles.some(tile => {
-            const u = this.getUnitAt(tile.x, tile.y);
-            return u && u.team === 'red';
-        });
-
-        if (!hasEnemy) {
-            this.showToast("범위 내에 적이 없습니다!");
-            this.attackableTiles = []; 
-            this.openActionMenu(); 
-            return;
-        }
-
+        const hasEnemy = this.attackableTiles.some(tile => { const u = this.getUnitAt(tile.x, tile.y); return u && u.team === 'red'; });
+        if (!hasEnemy) { this.showToast("범위 내에 적이 없습니다!"); this.attackableTiles = []; this.openActionMenu(); return; }
         this.gameState = 'TARGETING'; 
     }
-
     selectSkill(skillId) { 
-        this.selectedAction = { type: 'skill', id: skillId }; 
-        const skill = SKILLS[skillId]; 
-        this.calculateRange(skill.range); 
-        
-        const hasTarget = this.attackableTiles.some(tile => {
-            const u = this.getUnitAt(tile.x, tile.y);
-            if (!u) return false;
-            if (skill.type === 'heal') return u.team === 'blue'; 
-            else return u.team === 'red'; 
-        });
-
-        if (!hasTarget) {
-            this.showToast("범위 내에 유효한 대상이 없습니다!");
-            this.attackableTiles = [];
-            this.openActionMenu();
-            return;
-        }
-
+        this.selectedAction = { type: 'skill', id: skillId }; const skill = SKILLS[skillId]; this.calculateRange(skill.range); 
+        const hasTarget = this.attackableTiles.some(tile => { const u = this.getUnitAt(tile.x, tile.y); if (!u) return false; if (skill.type === 'heal') return u.team === 'blue'; else return u.team === 'red'; });
+        if (!hasTarget) { this.showToast("범위 내에 유효한 대상이 없습니다!"); this.attackableTiles = []; this.openActionMenu(); return; }
         this.gameState = 'TARGETING'; 
     }
-    
     wait() { this.endAction(); }
     calculateRange(range) {
         this.attackableTiles = [];

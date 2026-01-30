@@ -26,11 +26,40 @@ export class UIManager {
 
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
+
+        // [신규] 데미지 프리뷰 요소
+        this.previewEl = document.getElementById('damage-preview');
+        this.previewVal = document.getElementById('preview-val');
     }
 
     setupZoomControls(onZoomIn, onZoomOut) {
         this.btnZoomIn.onclick = (e) => { e.stopPropagation(); onZoomIn(); };
         this.btnZoomOut.onclick = (e) => { e.stopPropagation(); onZoomOut(); };
+    }
+
+    // [신규] 데미지 예측창 표시
+    showDamagePreview(prediction, screenX, screenY) {
+        this.previewEl.style.display = 'block';
+        // 마우스보다 약간 위에 표시
+        this.previewEl.style.left = (screenX + 20) + 'px';
+        this.previewEl.style.top = (screenY - 40) + 'px';
+
+        if (prediction.type === 'heal') {
+            this.previewVal.innerText = `+${prediction.val}`;
+            this.previewVal.style.color = '#00ff00';
+        } else {
+            // 범위 데미지(일반공격) or 고정 데미지(스킬)
+            if (prediction.min !== undefined) {
+                this.previewVal.innerText = `${prediction.min} ~ ${prediction.max}`;
+            } else {
+                this.previewVal.innerText = `${prediction.val}`;
+            }
+            this.previewVal.style.color = '#ffcc00';
+        }
+    }
+
+    hideDamagePreview() {
+        this.previewEl.style.display = 'none';
     }
 
     updateUnit(unit) {
@@ -58,11 +87,10 @@ export class UIManager {
         this.mpBarEl.style.width = `${mpPct}%`;
     }
 
-    // [수정] 지형 정보 업데이트
     updateTerrain(type) {
         const tData = TERRAIN_DATA[type] || TERRAIN_DATA[0];
         this.terrainEl.innerText = tData.name;
-        this.terrainEffectEl.innerText = tData.desc; // "이동비용: 2 / 방어 +20%" 등
+        this.terrainEffectEl.innerText = tData.desc; 
     }
 
     showActionMenu(unit, onAttack, onMagic, onWait) {
