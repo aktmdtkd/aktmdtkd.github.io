@@ -4,8 +4,6 @@ export class AI {
     }
 
     async runTurn(gameManager) {
-        console.log("AI: --- Enemy Turn Start ---");
-        
         const enemies = gameManager.units.filter(u => u.team === 'red' && !u.isDead());
 
         if (enemies.length === 0) {
@@ -15,7 +13,6 @@ export class AI {
 
         for (const enemy of enemies) {
             if(enemy.isDead()) continue;
-            // [추가] 게임이 끝났으면 AI 중단
             if(gameManager.gameOver) break;
 
             await new Promise(resolve => setTimeout(resolve, this.delay));
@@ -52,17 +49,14 @@ export class AI {
             const distAfterMove = this.getDistance(enemy, target);
             if (distAfterMove <= enemy.attackRange) {
                 await new Promise(resolve => setTimeout(resolve, 200));
-                // [수정] 공격 연출 대기 및 effectManager 전달
                 await gameManager.battleSystem.executeAttack(enemy, target, gameManager.effectManager);
             }
 
             enemy.endAction();
-            gameManager.checkDeadUnits(); // 사망 처리 후 승패 체크가 포함됨
+            gameManager.checkDeadUnits(); 
         }
 
-        // 턴 종료 전 게임 오버 체크
         if (!gameManager.gameOver) {
-            console.log("AI: --- Enemy Turn End ---");
             gameManager.startPlayerTurn();
         }
     }

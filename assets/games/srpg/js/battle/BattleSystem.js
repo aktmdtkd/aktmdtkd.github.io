@@ -7,7 +7,6 @@ export const SKILLS = {
         name: "구원", cost: 15, range: 2, power: 2.0, 
         type: "heal", aoe: "single" 
     },
-    // [신규] 물리 스킬
     "smash": { 
         name: "강타", cost: 8, range: 1, power: 1.3, 
         type: "phys_damage", aoe: "single" 
@@ -30,7 +29,7 @@ export class BattleSystem {
 
         if (skill.type === 'magic_damage') {
             basePower = attacker.int * skill.power;
-            finalValue = basePower - (defender.int * 0.5); // 마법 방어 적용
+            finalValue = basePower - (defender.int * 0.5);
 
         } else if (skill.type === 'heal') {
             basePower = attacker.int * skill.power;
@@ -38,7 +37,7 @@ export class BattleSystem {
 
         } else if (skill.type === 'phys_damage') {
             basePower = attacker.atk * skill.power;
-            finalValue = basePower - defender.def; // 물리 방어 적용
+            finalValue = basePower - defender.def;
         }
 
         if (finalValue <= 1) finalValue = 1;
@@ -62,7 +61,6 @@ export class BattleSystem {
     async executeSkill(attacker, targetX, targetY, skillId, allUnits, effectManager) {
         const skill = SKILLS[skillId];
         
-        // MP 소모
         attacker.useMp(skill.cost);
         effectManager.addDamageText(attacker.x, attacker.y, `MP -${skill.cost}`, '#5555ff');
 
@@ -95,7 +93,6 @@ export class BattleSystem {
             }
         }
 
-        console.log(`Skill: ${skill.name} used.`);
         await new Promise(resolve => setTimeout(resolve, 400));
     }
 }

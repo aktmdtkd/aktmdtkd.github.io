@@ -32,7 +32,6 @@ export class GameManager {
         this.lastHoverX = -1;
         this.lastHoverY = -1;
 
-        // 드래그 변수
         this.isDragging = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
@@ -69,7 +68,6 @@ export class GameManager {
 
                 if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || this.isDragging) {
                     this.isDragging = true;
-                    // 카메라 이동
                     const newCamX = this.cameraStartX - dx;
                     const newCamY = this.cameraStartY - dy;
                     
@@ -79,7 +77,6 @@ export class GameManager {
             }
 
             const rect = canvas.getBoundingClientRect();
-            // 호버: 마우스 좌표 + 카메라 좌표
             const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
             const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
             
@@ -107,7 +104,6 @@ export class GameManager {
             if (this.turn === 'ENEMY' || this.isAnimating) return;
 
             const rect = canvas.getBoundingClientRect();
-            // 클릭: 마우스 좌표 + 카메라 좌표
             const worldX = (e.clientX - rect.left) + this.renderer.camera.x;
             const worldY = (e.clientY - rect.top) + this.renderer.camera.y;
 
@@ -333,7 +329,6 @@ export class GameManager {
                 this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
             }
         } catch (e) {
-            console.error(e);
         }
     }
 

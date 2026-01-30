@@ -31,7 +31,6 @@ export class Unit {
         this.def = classInfo.def;
         this.int = classInfo.int || 10;
         
-        // [중요] 스킬 목록 로드
         this.skills = classInfo.skills || [];
 
         this.isActionDone = false;
@@ -110,25 +109,9 @@ export class Unit {
     }
 
     moveTo(x, y) { this.x = x; this.y = y; this.pixelX = x*40; this.pixelY = y*40; }
-    
-    takeDamage(amount) { 
-        this.currentHp -= amount; 
-        if (this.currentHp < 0) this.currentHp = 0; 
-    }
-    
-    heal(amount) {
-        this.currentHp += amount;
-        if (this.currentHp > this.maxHp) this.currentHp = this.maxHp;
-    }
-
-    useMp(amount) {
-        if (this.currentMp >= amount) {
-            this.currentMp -= amount;
-            return true;
-        }
-        return false;
-    }
-
+    takeDamage(amount) { this.currentHp -= amount; if (this.currentHp < 0) this.currentHp = 0; }
+    heal(amount) { this.currentHp += amount; if (this.currentHp > this.maxHp) this.currentHp = this.maxHp; }
+    useMp(amount) { if (this.currentMp >= amount) { this.currentMp -= amount; return true; } return false; }
     isDead() { return this.currentHp <= 0; }
     resetTurn() { this.isActionDone = false; }
     endAction() { this.isActionDone = true; }

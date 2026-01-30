@@ -32,7 +32,6 @@ export class PathFinder {
                     visited.add(`${nx},${ny}`);
                     queue.push({ x: nx, y: ny, dist: current.dist + 1 });
 
-                    // [수정된 부분] 빈 땅이거나, 혹은 그 자리에 있는 게 '나 자신'이라면 결과에 포함
                     if (!occupant || occupant === unit) {
                         result.push({ x: nx, y: ny });
                     }
@@ -40,7 +39,6 @@ export class PathFinder {
             }
         }
         
-        // [중요] 시작 위치(제자리)는 항상 포함시킴 (BFS 특성상 위 루프에서 빠질 수도 있으므로 안전장치)
         if (!result.some(p => p.x === unit.x && p.y === unit.y)) {
             result.push({ x: unit.x, y: unit.y });
         }
@@ -49,7 +47,6 @@ export class PathFinder {
     }
 
     findPath(unit, targetX, targetY, gridMap, allUnits) {
-        // 제자리 클릭 시 경로 탐색 불필요 -> 빈 배열 반환
         if (unit.x === targetX && unit.y === targetY) {
             return [];
         }

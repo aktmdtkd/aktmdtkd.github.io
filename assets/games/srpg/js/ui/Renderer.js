@@ -3,25 +3,23 @@ export class Renderer {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.tileSize = 40;
-        this.camera = { x: 0, y: 0 }; // 이 부분이 꼭 있어야 함
+        this.camera = { x: 0, y: 0 };
     }
 
-    updateCamera(x, y, mapWidth, mapHeight) {
+    updateCamera(x, y, mapCols, mapRows) {
         const viewW = this.canvas.width;
         const viewH = this.canvas.height;
-        const mapW = mapWidth * this.tileSize;
-        const mapH = mapHeight * this.tileSize;
+        const mapW = mapCols * this.tileSize;
+        const mapH = mapRows * this.tileSize;
 
         this.camera.x = x;
         this.camera.y = y;
 
-        // 범위 제한
         if (this.camera.x < 0) this.camera.x = 0;
         if (this.camera.y < 0) this.camera.y = 0;
         if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
         if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
-        
-        // 맵이 화면보다 작으면 0으로 고정 (이 로직 때문에 맵 파일 업데이트가 필수!)
+
         if (mapW < viewW) this.camera.x = 0;
         if (mapH < viewH) this.camera.y = 0;
     }
@@ -32,15 +30,16 @@ export class Renderer {
 
     drawMap(gridMap) {
         if (!gridMap.data) return;
+        
         for (let y = 0; y < gridMap.rows; y++) {
             for (let x = 0; x < gridMap.cols; x++) {
-                const type = gridMap.data[y][x];
                 const px = x * this.tileSize - this.camera.x;
                 const py = y * this.tileSize - this.camera.y;
 
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) continue;
 
+                const type = gridMap.data[y][x];
                 if (type === 0) this.ctx.fillStyle = '#4ea24e';
                 else if (type === 1) this.ctx.fillStyle = '#8b4513';
                 else if (type === 2) this.ctx.fillStyle = '#4444ff';

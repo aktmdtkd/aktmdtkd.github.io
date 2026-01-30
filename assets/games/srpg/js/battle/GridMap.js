@@ -2,7 +2,7 @@ export class GridMap {
     constructor() {
         this.rows = 0;
         this.cols = 0;
-        this.data = []; // 0:평지, 1:산, 2:물
+        this.data = [];
     }
 
     load(mapData) {
@@ -16,7 +16,6 @@ export class GridMap {
         return this.data[y][x];
     }
 
-    // [이 부분이 빠져 있었습니다!]
     isValid(x, y) {
         return x >= 0 && x < this.cols && y >= 0 && y < this.rows;
     }

@@ -69,7 +69,6 @@ export class UIManager {
         this.btnMagic.onclick = () => { this.hideMenus(); onMagic(); };
         this.btnWait.onclick = () => { this.hideMenus(); onWait(); };
 
-        // [핵심] 유닛이 가진 스킬 유무와 MP 잔량 확인
         const unitSkills = unit.skills || [];
         if (unitSkills.length === 0) {
             this.btnMagic.disabled = true;
@@ -91,8 +90,6 @@ export class UIManager {
         this.actionMenu.style.display = 'none';
 
         let html = `<div class="menu-title">책략 선택 (MP ${unit.currentMp})</div>`;
-        
-        // 유닛의 스킬 목록을 순회하며 버튼 생성
         const availableSkills = unit.skills || [];
 
         availableSkills.forEach(skillId => {
