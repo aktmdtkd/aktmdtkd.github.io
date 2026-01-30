@@ -4,11 +4,13 @@ import { PathFinder } from '../battle/PathFinder.js';
 import { BattleSystem } from '../battle/BattleSystem.js';
 import { AI } from '../battle/AI.js';
 import { Renderer } from '../ui/Renderer.js';
+import { UIManager } from '../ui/UIManager.js'; // [추가]
 
 export class GameManager {
     constructor() {
         this.gridMap = new GridMap();
         this.renderer = new Renderer('gameCanvas');
+        this.uiManager = new UIManager(); // [추가]
         this.pathFinder = new PathFinder();
         this.battleSystem = new BattleSystem();
         this.ai = new AI();
@@ -23,6 +25,10 @@ export class GameManager {
         this.selectedUnit = null;
         this.movableTiles = [];
         this.attackableTiles = [];
+
+        // 마우스 호버 최적화를 위한 변수
+        this.lastHoverX = -1;
+        this.lastHoverY = -1;
     }
 
     async init() {
@@ -33,6 +39,30 @@ export class GameManager {
 
     setupInput() {
         const canvas = this.renderer.canvas;
+
+        // [1] 마우스 이동 (UI 정보 갱신용)
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
+            const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
+
+            // 같은 타일 위에 있으면 연산 생략 (최적화)
+            if (tx === this.lastHoverX && ty === this.lastHoverY) return;
+            this.lastHoverX = tx;
+            this.lastHoverY = ty;
+
+            // 1. 유닛 정보 갱신
+            const hoverUnit = this.getUnitAt(tx, ty);
+            this.uiManager.updateUnit(hoverUnit);
+
+            // 2. 지형 정보 갱신
+            const terrainType = this.gridMap.getTerrain(tx, ty);
+            if (terrainType !== null) {
+                this.uiManager.updateTerrain(terrainType);
+            }
+        });
+
+        // [2] 마우스 클릭 (게임 로직)
         canvas.addEventListener('mousedown', (e) => {
             if (this.turn === 'ENEMY' || this.isAnimating) return;
 
@@ -65,16 +95,14 @@ export class GameManager {
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
                 
-                // [수정됨] 제자리 클릭(대기)인지 확인
+                // 제자리 대기
                 if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
-                    console.log("Hold position (No move)");
+                    console.log("Hold position");
                     this.movableTiles = [];
-                    // 이동 애니메이션 없이 바로 행동(공격/대기) 단계로 진입
                     this.onMoveFinished();
                     return;
                 }
 
-                // 다른 곳으로 이동 시
                 const path = this.pathFinder.findPath(
                     this.selectedUnit, 
                     x, y, 
@@ -85,7 +113,7 @@ export class GameManager {
                 if (path && path.length > 0) {
                     this.selectedUnit.moveAlong(path);
                     this.movableTiles = []; 
-                    this.isAnimating = true; 
+                    this.isAnimating = true;
                     this.gameState = 'MOVING';
                 } else {
                     console.warn("Path finding failed.");
@@ -101,17 +129,18 @@ export class GameManager {
         if (this.gameState === 'TARGETING') {
             const targetUnit = this.getUnitAt(x, y);
             
-            // 3-1. 공격
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 if (targetUnit && targetUnit.team === 'red') {
                     this.battleSystem.executeAttack(this.selectedUnit, targetUnit);
                     this.checkDeadUnits();
                     this.endAction();
+                    
+                    // UI 강제 업데이트 (적 체력이 줄었으므로)
+                    this.uiManager.updateUnit(targetUnit);
                     return;
                 }
             }
 
-            // 3-2. 대기 (자기 자신이나 빈 땅 클릭)
             if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
                 console.log("Command: Wait");
                 this.endAction();
