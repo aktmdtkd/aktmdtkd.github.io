@@ -19,7 +19,7 @@ export class BattleSystem {
     calculateDamage(attacker, defender) {
         let damage = attacker.atk - defender.def;
         if (damage <= 0) damage = 1;
-        const variance = (Math.random() * 0.2) + 0.9;
+        const variance = (Math.random() * 0.2) + 0.9; // 0.9 ~ 1.1 배율
         return Math.floor(damage * variance);
     }
 
@@ -30,11 +30,9 @@ export class BattleSystem {
         if (skill.type === 'magic_damage') {
             basePower = attacker.int * skill.power;
             finalValue = basePower - (defender.int * 0.5);
-
         } else if (skill.type === 'heal') {
             basePower = attacker.int * skill.power;
             finalValue = basePower;
-
         } else if (skill.type === 'phys_damage') {
             basePower = attacker.atk * skill.power;
             finalValue = basePower - defender.def;
@@ -44,7 +42,11 @@ export class BattleSystem {
         return Math.floor(finalValue);
     }
 
+    // [핵심 수정] 일반 공격 및 반격 로직
     async executeAttack(attacker, defender, effectManager) {
+        // --- 1. 공격자(Attacker)의 선제 공격 ---
+        console.log(`Battle: ${attacker.name} attacks ${defender.name}`);
+        
         attacker.attackBump(defender.x, defender.y);
         await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -54,10 +56,43 @@ export class BattleSystem {
         const isCritical = Math.random() < 0.2;
         effectManager.addDamageText(defender.x, defender.y, damage, isCritical ? '#ff0000' : '#ffffff');
 
+        // 타격 연출 대기
         await new Promise(resolve => setTimeout(resolve, 300));
+
+        // --- 2. 반격(Counterattack) 체크 ---
+        // 조건 1: 방어자가 살아있어야 함
+        // 조건 2: 공격자가 방어자의 사거리(Attack Range) 안에 있어야 함
+        if (!defender.isDead()) {
+            const dist = Math.abs(attacker.x - defender.x) + Math.abs(attacker.y - defender.y);
+            
+            if (dist <= defender.attackRange) {
+                console.log(`Battle: ${defender.name} counters!`);
+                
+                // 반격 전 살짝 뜸들이기 (긴장감)
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // 방어자의 반격 모션
+                defender.attackBump(attacker.x, attacker.y);
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // 반격 데미지 계산 (보통 반격은 데미지가 같거나 패널티를 줄 수 있음. 여기선 100% 적용)
+                const counterDamage = this.calculateDamage(defender, attacker);
+                attacker.takeDamage(counterDamage);
+
+                // 반격 텍스트 (주황색 계열로 표시하여 구분)
+                effectManager.addDamageText(attacker.x, attacker.y, counterDamage, '#ff8844');
+
+                // 반격 후 딜레이
+                await new Promise(resolve => setTimeout(resolve, 300));
+            } else {
+                console.log(`Battle: Target is out of range (${dist} > ${defender.attackRange}), cannot counter.`);
+            }
+        }
+
         return damage;
     }
 
+    // 스킬 공격 (반격 없음)
     async executeSkill(attacker, targetX, targetY, skillId, allUnits, effectManager) {
         const skill = SKILLS[skillId];
         
@@ -93,6 +128,8 @@ export class BattleSystem {
             }
         }
 
+        // 스킬은 반격 로직이 없음 (그대로 종료)
+        console.log(`Skill: ${skill.name} used.`);
         await new Promise(resolve => setTimeout(resolve, 400));
     }
 }
