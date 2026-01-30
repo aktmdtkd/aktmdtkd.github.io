@@ -10,12 +10,15 @@ export class Unit {
         this.pixelX = this.x * this.tileSize;
         this.pixelY = this.y * this.tileSize;
         
-        // [수정] 경로 이동을 위한 큐
+        // [추가] 공격 모션용 오프셋 (흔들림 효과)
+        this.offsetX = 0;
+        this.offsetY = 0;
+        
         this.pathQueue = []; 
         this.targetPixelX = this.pixelX;
         this.targetPixelY = this.pixelY;
         this.isMoving = false;
-        this.moveSpeed = 8; // 속도 (8px/frame)
+        this.moveSpeed = 8;
 
         this.className = classInfo.name;
         this.moveRange = classInfo.moveRange;
@@ -28,22 +31,26 @@ export class Unit {
         this.isActionDone = false;
     }
 
-    // [수정] 경로(Path)를 받아서 이동 시작
+    // [추가] 공격 모션 시작 (대상 방향으로 살짝 튕김)
+    attackBump(targetX, targetY) {
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        // 방향 벡터 정규화 및 반동 크기 설정 (20px)
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        this.offsetX = (dx / distance) * 20;
+        this.offsetY = (dy / distance) * 20;
+    }
+
     moveAlong(path) {
         if (!path || path.length === 0) return;
-        
-        // 이동할 경로 저장
         this.pathQueue = path;
-        
-        // 첫 번째 목표 설정
         this.setNextStep();
         this.isMoving = true;
     }
 
-    // [신규] 다음 칸으로 목표 설정
     setNextStep() {
         if (this.pathQueue.length > 0) {
-            const nextTile = this.pathQueue[0]; // 큐의 맨 앞 확인
+            const nextTile = this.pathQueue[0];
             this.targetPixelX = nextTile.x * this.tileSize;
             this.targetPixelY = nextTile.y * this.tileSize;
         } else {
@@ -51,14 +58,20 @@ export class Unit {
         }
     }
 
-    // [수정] 업데이트 로직 (한 칸씩 이동)
     update() {
+        // [추가] 공격 모션 복귀 (오프셋을 서서히 0으로)
+        if (this.offsetX !== 0 || this.offsetY !== 0) {
+            this.offsetX *= 0.8; // 매 프레임 20%씩 감소
+            this.offsetY *= 0.8;
+            if (Math.abs(this.offsetX) < 0.5) this.offsetX = 0;
+            if (Math.abs(this.offsetY) < 0.5) this.offsetY = 0;
+        }
+
         if (!this.isMoving) return false;
 
         let arrivedX = false;
         let arrivedY = false;
 
-        // X축 이동
         if (this.pixelX < this.targetPixelX) {
             this.pixelX = Math.min(this.pixelX + this.moveSpeed, this.targetPixelX);
         } else if (this.pixelX > this.targetPixelX) {
@@ -67,7 +80,6 @@ export class Unit {
             arrivedX = true;
         }
 
-        // Y축 이동
         if (this.pixelY < this.targetPixelY) {
             this.pixelY = Math.min(this.pixelY + this.moveSpeed, this.targetPixelY);
         } else if (this.pixelY > this.targetPixelY) {
@@ -76,29 +88,23 @@ export class Unit {
             arrivedY = true;
         }
 
-        // 한 칸 도착 체크
         if (arrivedX && arrivedY) {
-            // 방금 도착한 타일 정보 업데이트
-            const arrivedTile = this.pathQueue.shift(); // 큐에서 제거
+            const arrivedTile = this.pathQueue.shift();
             this.x = arrivedTile.x;
             this.y = arrivedTile.y;
 
             if (this.pathQueue.length > 0) {
-                // 아직 갈 길이 남았으면 다음 칸 설정
                 this.setNextStep();
-                return false; // 아직 최종 도착 아님
+                return false;
             } else {
-                // 최종 도착
                 this.isMoving = false;
-                return true; // 도착 신호 보냄
+                return true;
             }
         }
-
         return false;
     }
 
-    // (기존 메서드 유지)
-    moveTo(x, y) { this.x = x; this.y = y; this.pixelX = x*40; this.pixelY = y*40; } // 순간이동용(AI등)
+    moveTo(x, y) { this.x = x; this.y = y; this.pixelX = x*40; this.pixelY = y*40; }
     takeDamage(amount) { this.currentHp -= amount; if (this.currentHp < 0) this.currentHp = 0; }
     isDead() { return this.currentHp <= 0; }
     resetTurn() { this.isActionDone = false; }

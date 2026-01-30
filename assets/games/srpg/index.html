@@ -13,10 +13,9 @@
             height: 100vh;
             color: white;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden; /* 스크롤 방지 */
+            overflow: hidden;
         }
         
-        /* 게임 컨테이너 (캔버스 + UI) */
         .game-wrapper {
             position: relative;
             width: 640px;
@@ -27,88 +26,50 @@
         canvas {
             background: #000;
             display: block;
+            cursor: crosshair; /* 마우스 커서 변경 */
         }
 
-        /* --- UI 패널 스타일 --- */
         #game-ui {
             position: absolute;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 100px; /* 높이 설정 */
-            background: rgba(0, 0, 0, 0.85); /* 반투명 검정 */
+            height: 100px;
+            background: rgba(0, 0, 0, 0.85);
             border-top: 2px solid #555;
             box-sizing: border-box;
             display: flex;
             padding: 10px 20px;
             justify-content: space-between;
             align-items: center;
-            pointer-events: none; /* UI가 마우스 클릭을 가로채지 않도록 */
+            pointer-events: none;
+            z-index: 10; /* 캔버스보다 위에 오도록 명시 */
         }
 
-        /* 왼쪽: 유닛 정보 */
         .unit-info {
             display: flex;
             flex-direction: column;
             gap: 5px;
             width: 200px;
         }
-        .unit-name {
-            font-size: 18px;
-            font-weight: bold;
-            color: #ffcc00;
-        }
-        .unit-class {
-            font-size: 12px;
-            color: #aaa;
-        }
+        .unit-name { font-size: 18px; font-weight: bold; color: #ffcc00; }
+        .unit-class { font-size: 12px; color: #aaa; }
         
-        /* HP 바 디자인 */
         .hp-bar-bg {
-            width: 100%;
-            height: 10px;
-            background: #333;
-            border: 1px solid #555;
-            border-radius: 5px;
-            overflow: hidden;
+            width: 100%; height: 10px; background: #333;
+            border: 1px solid #555; border-radius: 5px; overflow: hidden;
         }
         .hp-bar-fill {
-            width: 100%; /* JS로 제어 */
-            height: 100%;
-            background: #00ff00;
-            transition: width 0.2s ease;
+            width: 100%; height: 100%; background: #00ff00; transition: width 0.2s ease;
         }
-        .hp-text {
-            font-size: 12px;
-            text-align: right;
-        }
+        .hp-text { font-size: 12px; text-align: right; }
 
-        /* 가운데: 스탯 정보 */
-        .stats-info {
-            display: flex;
-            gap: 20px;
-            font-size: 14px;
-            font-weight: bold;
-        }
+        .stats-info { display: flex; gap: 20px; font-size: 14px; font-weight: bold; }
         .stat-box span { display: block; font-size: 10px; color: #aaa; font-weight: normal; }
 
-        /* 오른쪽: 지형 정보 */
-        .terrain-info {
-            text-align: right;
-            width: 120px;
-        }
-        .terrain-name {
-            font-size: 16px;
-            font-weight: bold;
-            color: #88ccff;
-        }
-        .terrain-buff {
-            font-size: 12px;
-            color: #aaa;
-        }
-
-        /* 숨김 처리용 */
-        .hidden { opacity: 0; }
+        .terrain-info { text-align: right; width: 120px; }
+        .terrain-name { font-size: 16px; font-weight: bold; color: #88ccff; }
+        .terrain-buff { font-size: 12px; color: #aaa; }
     </style>
 </head>
 <body>
@@ -117,7 +78,7 @@
         <canvas id="gameCanvas" width="640" height="480"></canvas>
         
         <div id="game-ui">
-            <div class="unit-info" id="ui-unit-panel">
+            <div class="unit-info" id="ui-unit-panel" style="opacity: 0;">
                 <div class="unit-name" id="ui-name">유닛 이름</div>
                 <div class="unit-class" id="ui-class">직업</div>
                 <div class="hp-bar-bg">
@@ -126,7 +87,7 @@
                 <div class="hp-text" id="ui-hp-text">100 / 100</div>
             </div>
 
-            <div class="stats-info" id="ui-stats-panel">
+            <div class="stats-info" id="ui-stats-panel" style="opacity: 0;">
                 <div class="stat-box"><span>공격력</span><div id="ui-atk">0</div></div>
                 <div class="stat-box"><span>방어력</span><div id="ui-def">0</div></div>
                 <div class="stat-box"><span>이동력</span><div id="ui-move">0</div></div>

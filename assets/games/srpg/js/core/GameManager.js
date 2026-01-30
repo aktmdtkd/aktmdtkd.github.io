@@ -4,13 +4,15 @@ import { PathFinder } from '../battle/PathFinder.js';
 import { BattleSystem } from '../battle/BattleSystem.js';
 import { AI } from '../battle/AI.js';
 import { Renderer } from '../ui/Renderer.js';
-import { UIManager } from '../ui/UIManager.js'; // [추가]
+import { UIManager } from '../ui/UIManager.js';
+import { EffectManager } from '../ui/EffectManager.js'; // [추가]
 
 export class GameManager {
     constructor() {
         this.gridMap = new GridMap();
         this.renderer = new Renderer('gameCanvas');
-        this.uiManager = new UIManager(); // [추가]
+        this.uiManager = new UIManager();
+        this.effectManager = new EffectManager(); // [추가]
         this.pathFinder = new PathFinder();
         this.battleSystem = new BattleSystem();
         this.ai = new AI();
@@ -20,13 +22,12 @@ export class GameManager {
 
         this.gameState = 'IDLE'; 
         this.turn = 'PLAYER'; 
-        this.isAnimating = false; 
+        this.isAnimating = false;
+        this.gameOver = null; // [추가] null, 'WIN', 'LOSE'
         
         this.selectedUnit = null;
         this.movableTiles = [];
         this.attackableTiles = [];
-
-        // 마우스 호버 최적화를 위한 변수
         this.lastHoverX = -1;
         this.lastHoverY = -1;
     }
@@ -40,83 +41,70 @@ export class GameManager {
     setupInput() {
         const canvas = this.renderer.canvas;
 
-        // [1] 마우스 이동 (UI 정보 갱신용)
         canvas.addEventListener('mousemove', (e) => {
+            // [추가] 게임 오버 시 정보 갱신 중단
+            if (this.gameOver) return;
             const rect = canvas.getBoundingClientRect();
             const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
             const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
 
-            // 같은 타일 위에 있으면 연산 생략 (최적화)
             if (tx === this.lastHoverX && ty === this.lastHoverY) return;
             this.lastHoverX = tx;
             this.lastHoverY = ty;
 
-            // 1. 유닛 정보 갱신
             const hoverUnit = this.getUnitAt(tx, ty);
             this.uiManager.updateUnit(hoverUnit);
-
-            // 2. 지형 정보 갱신
             const terrainType = this.gridMap.getTerrain(tx, ty);
-            if (terrainType !== null) {
-                this.uiManager.updateTerrain(terrainType);
-            }
+            if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
         });
 
-        // [2] 마우스 클릭 (게임 로직)
-        canvas.addEventListener('mousedown', (e) => {
+        canvas.addEventListener('mousedown', async (e) => { // [수정] async 추가
+            // [추가] 게임 오버 시 클릭하면 재시작
+            if (this.gameOver) {
+                location.reload();
+                return;
+            }
             if (this.turn === 'ENEMY' || this.isAnimating) return;
 
             const rect = canvas.getBoundingClientRect();
             const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
             const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
-            this.handleClick(tx, ty);
+            await this.handleClick(tx, ty); // [수정] await 추가
         });
 
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            if (this.turn === 'PLAYER' && !this.isAnimating) this.resetSelection();
+            if (this.turn === 'PLAYER' && !this.isAnimating && !this.gameOver) this.resetSelection();
         });
     }
 
-    handleClick(x, y) {
-        // [1] 유닛 선택
+    async handleClick(x, y) { // [수정] async 추가
         if (this.gameState === 'IDLE') {
             const clickedUnit = this.getUnitAt(x, y);
             if (clickedUnit && clickedUnit.team === 'blue' && !clickedUnit.isActionDone) {
                 this.selectedUnit = clickedUnit;
                 this.movableTiles = this.pathFinder.getMovableTiles(clickedUnit, this.gridMap, this.units);
                 this.gameState = 'SELECTED';
-                console.log(`Selected: ${clickedUnit.name}`);
             }
             return;
         }
 
-        // [2] 이동 목표 선택
         if (this.gameState === 'SELECTED') {
             if (this.movableTiles.some(t => t.x === x && t.y === y)) {
-                
-                // 제자리 대기
                 if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
-                    console.log("Hold position");
                     this.movableTiles = [];
                     this.onMoveFinished();
                     return;
                 }
-
                 const path = this.pathFinder.findPath(
-                    this.selectedUnit, 
-                    x, y, 
-                    this.gridMap, 
-                    this.units
+                    this.selectedUnit, x, y, this.gridMap, this.units
                 );
-
                 if (path && path.length > 0) {
                     this.selectedUnit.moveAlong(path);
                     this.movableTiles = []; 
                     this.isAnimating = true;
                     this.gameState = 'MOVING';
                 } else {
-                    console.warn("Path finding failed.");
                     this.resetSelection();
                 }
             } else {
@@ -125,24 +113,22 @@ export class GameManager {
             return;
         }
 
-        // [3] 공격/대기
         if (this.gameState === 'TARGETING') {
             const targetUnit = this.getUnitAt(x, y);
-            
             if (this.attackableTiles.some(t => t.x === x && t.y === y)) {
                 if (targetUnit && targetUnit.team === 'red') {
-                    this.battleSystem.executeAttack(this.selectedUnit, targetUnit);
+                    this.isAnimating = true; // [추가] 공격 중 입력 잠금
+                    // [수정] 공격 실행 대기 및 이펙트 매니저 전달
+                    await this.battleSystem.executeAttack(this.selectedUnit, targetUnit, this.effectManager);
+                    this.isAnimating = false; // 잠금 해제
+                    
                     this.checkDeadUnits();
                     this.endAction();
-                    
-                    // UI 강제 업데이트 (적 체력이 줄었으므로)
                     this.uiManager.updateUnit(targetUnit);
                     return;
                 }
             }
-
             if (x === this.selectedUnit.x && y === this.selectedUnit.y) {
-                console.log("Command: Wait");
                 this.endAction();
                 return;
             }
@@ -153,7 +139,6 @@ export class GameManager {
         this.isAnimating = false; 
         this.calculateAttackRange(this.selectedUnit);
         this.gameState = 'TARGETING';
-        console.log("Move finished. Now Targeting.");
     }
 
     calculateAttackRange(unit) {
@@ -178,6 +163,9 @@ export class GameManager {
         }
         this.resetSelection();
 
+        // [추가] 턴 종료 시 승패 체크
+        if (this.checkWinCondition()) return;
+
         const activeBlues = this.units.filter(u => u.team === 'blue' && !u.isActionDone && !u.isDead());
         if (activeBlues.length === 0) {
             this.startEnemyTurn();
@@ -185,13 +173,11 @@ export class GameManager {
     }
 
     startEnemyTurn() {
-        console.log("System: Starting Enemy Turn...");
         this.turn = 'ENEMY';
         this.ai.runTurn(this);
     }
 
     startPlayerTurn() {
-        console.log("System: Starting Player Turn...");
         this.turn = 'PLAYER';
         this.units.forEach(u => u.resetTurn());
     }
@@ -205,13 +191,28 @@ export class GameManager {
     }
 
     checkDeadUnits() {
-        this.units = this.units.filter(u => {
-            if (u.isDead()) {
-                console.log(`${u.name} has been defeated!`);
-                return false;
-            }
+        this.units = this.units.filter(u => !u.isDead());
+        // [추가] 유닛 사망 시 즉시 승패 체크
+        this.checkWinCondition();
+    }
+
+    // [추가] 승리/패배 조건 체크
+    checkWinCondition() {
+        if (this.gameOver) return true; // 이미 끝났으면 패스
+
+        const blueAlive = this.units.some(u => u.team === 'blue' && !u.isDead());
+        const redAlive = this.units.some(u => u.team === 'red' && !u.isDead());
+
+        if (!redAlive) {
+            this.gameOver = 'WIN';
+            console.log("Game Over: Victory!");
             return true;
-        });
+        } else if (!blueAlive) {
+            this.gameOver = 'LOSE';
+            console.log("Game Over: Defeat!");
+            return true;
+        }
+        return false;
     }
 
     getUnitAt(x, y) {
@@ -231,13 +232,15 @@ export class GameManager {
                 const newUnit = new Unit(uConfig, classInfo);
                 this.units.push(newUnit);
             });
-            console.log("System: Data Loaded.");
         } catch (e) {
             console.error("System: Failed to load data", e);
         }
     }
 
     loop() {
+        // [추가] 이펙트 업데이트
+        this.effectManager.update();
+
         this.units.forEach(unit => {
             const arrived = unit.update();
             if (arrived && this.turn === 'PLAYER' && unit === this.selectedUnit) {
@@ -248,16 +251,25 @@ export class GameManager {
         this.renderer.clear();
         this.renderer.drawMap(this.gridMap);
         
-        if (this.movableTiles.length > 0) this.renderer.drawHighlights(this.movableTiles, 'move');
-        if (this.attackableTiles.length > 0) this.renderer.drawHighlights(this.attackableTiles, 'attack');
-
-        this.renderer.drawCursor(this.selectedUnit);
-        this.renderer.drawUnits(this.units);
+        if (!this.gameOver) {
+            if (this.movableTiles.length > 0) this.renderer.drawHighlights(this.movableTiles, 'move');
+            if (this.attackableTiles.length > 0) this.renderer.drawHighlights(this.attackableTiles, 'attack');
+            this.renderer.drawCursor(this.selectedUnit);
+        }
         
-        this.renderer.ctx.fillStyle = 'white';
-        this.renderer.ctx.font = '20px Arial';
-        this.renderer.ctx.textAlign = 'left';
-        this.renderer.ctx.fillText(`TURN: ${this.turn}`, 10, 30);
+        this.renderer.drawUnits(this.units);
+        // [추가] 이펙트 그리기 (유닛 위에)
+        this.renderer.drawEffects(this.effectManager);
+
+        if (!this.gameOver) {
+            this.renderer.ctx.fillStyle = 'white';
+            this.renderer.ctx.font = '20px Arial';
+            this.renderer.ctx.textAlign = 'left';
+            this.renderer.ctx.fillText(`TURN: ${this.turn}`, 10, 30);
+        } else {
+            // [추가] 게임 오버 화면 그리기
+            this.renderer.drawGameOver(this.gameOver);
+        }
 
         requestAnimationFrame(() => this.loop());
     }

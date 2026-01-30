@@ -47,7 +47,6 @@ export class Renderer {
 
     drawCursor(unit) {
         if(!unit) return;
-        // [수정] 커서도 유닛을 따라다니게 pixel 좌표 사용
         const px = unit.pixelX;
         const py = unit.pixelY;
         
@@ -57,11 +56,11 @@ export class Renderer {
         this.ctx.lineWidth = 1;
     }
 
-    // [수정] 픽셀 좌표 기반 렌더링
     drawUnits(units) {
         units.forEach(unit => {
-            const px = unit.pixelX; // 여기가 핵심!
-            const py = unit.pixelY; // 여기가 핵심!
+            // [수정] 공격 모션 오프셋 반영
+            const px = unit.pixelX + unit.offsetX;
+            const py = unit.pixelY + unit.offsetY;
             const size = this.tileSize;
             const padding = 5;
 
@@ -88,5 +87,29 @@ export class Renderer {
             
             this.ctx.fillRect(px + padding, py + size - 8, (size - padding*2) * hpRatio, 4);
         });
+    }
+
+    // [추가] 이펙트 매니저에게 그리기를 위임
+    drawEffects(effectManager) {
+        effectManager.draw(this.ctx);
+    }
+
+    // [추가] 게임 오버 결과 화면 그리기
+    drawGameOver(result) {
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.ctx.fillStyle = result === 'WIN' ? '#00ff00' : '#ff0000';
+        this.ctx.font = 'bold 48px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        const text = result === 'WIN' ? "VICTORY!" : "GAME OVER";
+        this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+        
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '24px Arial';
+        this.ctx.fillText("Click to Restart", this.canvas.width / 2, this.canvas.height / 2 + 50);
+        this.ctx.restore();
     }
 }
