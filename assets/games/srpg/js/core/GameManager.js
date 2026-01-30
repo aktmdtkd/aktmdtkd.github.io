@@ -32,7 +32,8 @@ export class GameManager {
         this.lastHoverX = -1;
         this.lastHoverY = -1;
 
-        this.isMouseDown = false;
+        // 입력 상태 (마우스 & 터치 공용)
+        this.isInputDown = false;
         this.isDragging = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
@@ -43,9 +44,7 @@ export class GameManager {
     }
 
     async init() {
-        // [신규] 초기화 시 리사이징 수행
         this.handleResize();
-        // 창 크기 변경 감지
         window.addEventListener('resize', () => this.handleResize());
 
         this.setupInput();
@@ -57,16 +56,12 @@ export class GameManager {
         this.loop();
     }
 
-    // [신규] 화면 크기 변경 핸들러
     handleResize() {
         const wrapper = document.querySelector('.game-wrapper');
         const w = wrapper.clientWidth;
         const h = wrapper.clientHeight;
         
-        // 렌더러에게 실제 크기를 알려줘서 캔버스 해상도 맞춤
         this.renderer.resize(w, h);
-        
-        // 화면 크기가 변했으니 카메라 제한 다시 계산
         this.renderer.updateCamera(this.renderer.camera.x, this.renderer.camera.y, this.gridMap.cols, this.gridMap.rows);
     }
 
@@ -115,58 +110,112 @@ export class GameManager {
         );
     }
 
-    getMousePos(evt) {
+    // [중요] 마우스/터치 좌표 통합 처리
+    getInputPos(evt) {
         const canvas = this.renderer.canvas;
         const rect = canvas.getBoundingClientRect();
         
-        // 캔버스 해상도가 화면 크기와 1:1로 맞춰졌으므로 스케일 계산 불필요
+        let clientX = evt.clientX;
+        let clientY = evt.clientY;
+
+        // 터치 이벤트인 경우 첫 번째 터치 좌표 사용
+        if (evt.touches && evt.touches.length > 0) {
+            clientX = evt.touches[0].clientX;
+            clientY = evt.touches[0].clientY;
+        } 
+        // 터치가 끝나는 순간(touchend)에는 touches가 비어있음 -> changedTouches 사용
+        else if (evt.changedTouches && evt.changedTouches.length > 0) {
+            clientX = evt.changedTouches[0].clientX;
+            clientY = evt.changedTouches[0].clientY;
+        }
+
         return {
-            x: evt.clientX - rect.left,
-            y: evt.clientY - rect.top
+            x: clientX - rect.left,
+            y: clientY - rect.top
         };
     }
 
     setupInput() {
         const canvas = this.renderer.canvas;
 
-        canvas.addEventListener('mousedown', (e) => {
-            e.preventDefault(); 
-            if (this.gameOver) { location.reload(); return; }
-            if (this.gameState === 'ACTION_SELECT') return;
-
-            canvas.style.cursor = 'grabbing';
-            this.isMouseDown = true;
+        // =========================================
+        // [PC] 마우스 이벤트
+        // =========================================
+        canvas.addEventListener('mousedown', (e) => this.handleStart(e));
+        canvas.addEventListener('mousemove', (e) => this.handleMove(e));
+        canvas.addEventListener('mouseup', (e) => this.handleEnd(e));
+        canvas.addEventListener('mouseleave', () => {
+            this.isInputDown = false;
             this.isDragging = false;
-            
-            const pos = this.getMousePos(e);
-            this.dragStartX = pos.x;
-            this.dragStartY = pos.y;
-            this.cameraStartX = this.renderer.camera.x;
-            this.cameraStartY = this.renderer.camera.y;
+            canvas.style.cursor = 'crosshair';
         });
 
-        canvas.addEventListener('mousemove', (e) => {
+        // =========================================
+        // [Mobile] 터치 이벤트 (옵션: passive false로 스크롤 방지)
+        // =========================================
+        canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
+        canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
+        canvas.addEventListener('touchend', (e) => this.handleEnd(e), { passive: false });
+
+        // 우클릭 방지 (PC/Mobile 공통)
+        canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            if (this.gameOver) return;
-
-            const pos = this.getMousePos(e);
-
-            if (this.isMouseDown) {
-                const dx = pos.x - this.dragStartX;
-                const dy = pos.y - this.dragStartY;
-
-                if (!this.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-                    this.isDragging = true;
-                }
-
-                if (this.isDragging) {
-                    const newCamX = this.cameraStartX - dx;
-                    const newCamY = this.cameraStartY - dy;
-                    this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
-                    return; 
+            if (this.turn === 'PLAYER' && !this.isAnimating && !this.gameOver) {
+                if (this.gameState === 'TARGETING') {
+                    this.openActionMenu();
+                } else if (this.gameState === 'SELECTED') {
+                    this.resetSelection();
                 }
             }
+        });
+    }
 
+    // [입력 시작] mousedown / touchstart
+    handleStart(e) {
+        if (e.cancelable) e.preventDefault(); // 기본 동작(텍스트 선택 등) 방지
+
+        if (this.gameOver) { location.reload(); return; }
+        if (this.gameState === 'ACTION_SELECT') return;
+
+        this.renderer.canvas.style.cursor = 'grabbing';
+        this.isInputDown = true;
+        this.isDragging = false;
+        
+        const pos = this.getInputPos(e);
+        this.dragStartX = pos.x;
+        this.dragStartY = pos.y;
+        this.cameraStartX = this.renderer.camera.x;
+        this.cameraStartY = this.renderer.camera.y;
+    }
+
+    // [입력 이동] mousemove / touchmove
+    handleMove(e) {
+        if (e.cancelable) e.preventDefault(); // [중요] 모바일 스크롤 방지
+        
+        if (this.gameOver) return;
+
+        const pos = this.getInputPos(e);
+
+        // 드래그 로직
+        if (this.isInputDown) {
+            const dx = pos.x - this.dragStartX;
+            const dy = pos.y - this.dragStartY;
+
+            // 5픽셀 이상 움직여야 드래그로 판정 (단순 탭과 구분)
+            if (!this.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+                this.isDragging = true;
+            }
+
+            if (this.isDragging) {
+                const newCamX = this.cameraStartX - dx;
+                const newCamY = this.cameraStartY - dy;
+                this.renderer.updateCamera(newCamX, newCamY, this.gridMap.cols, this.gridMap.rows);
+                return; // 드래그 중에는 호버링 처리 안 함
+            }
+        }
+
+        // 호버링 로직 (PC 전용 - 터치 기기는 보통 호버가 없음)
+        if (!this.isDragging && !('ontouchstart' in window)) {
             const worldX = pos.x + this.renderer.camera.x;
             const worldY = pos.y + this.renderer.camera.y;
             
@@ -181,48 +230,34 @@ export class GameManager {
             this.uiManager.updateUnit(hoverUnit);
             const terrainType = this.gridMap.getTerrain(tx, ty);
             if (terrainType !== null) this.uiManager.updateTerrain(terrainType);
-        });
+        }
+    }
 
-        canvas.addEventListener('mouseup', async (e) => {
-            e.preventDefault();
-            this.isMouseDown = false;
-            canvas.style.cursor = 'crosshair';
+    // [입력 종료] mouseup / touchend
+    async handleEnd(e) {
+        if (e.cancelable) e.preventDefault();
+        
+        this.isInputDown = false;
+        this.renderer.canvas.style.cursor = 'crosshair';
 
-            if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
+        if (this.gameOver || this.gameState === 'ACTION_SELECT') return;
 
-            if (this.isDragging) {
-                this.isDragging = false;
-                return;
-            }
-
-            if (this.turn === 'ENEMY' || this.isAnimating) return;
-
-            const pos = this.getMousePos(e);
-            const worldX = pos.x + this.renderer.camera.x;
-            const worldY = pos.y + this.renderer.camera.y;
-
-            const tx = Math.floor(worldX / this.renderer.tileSize);
-            const ty = Math.floor(worldY / this.renderer.tileSize);
-            
-            await this.handleClick(tx, ty);
-        });
-
-        canvas.addEventListener('mouseleave', () => {
-            this.isMouseDown = false;
+        // 드래그였다면 클릭 처리 없이 종료
+        if (this.isDragging) {
             this.isDragging = false;
-            canvas.style.cursor = 'crosshair';
-        });
+            return;
+        }
 
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (this.turn === 'PLAYER' && !this.isAnimating && !this.gameOver) {
-                if (this.gameState === 'TARGETING') {
-                    this.openActionMenu();
-                } else if (this.gameState === 'SELECTED') {
-                    this.resetSelection();
-                }
-            }
-        });
+        if (this.turn === 'ENEMY' || this.isAnimating) return;
+
+        const pos = this.getInputPos(e);
+        const worldX = pos.x + this.renderer.camera.x;
+        const worldY = pos.y + this.renderer.camera.y;
+
+        const tx = Math.floor(worldX / this.renderer.tileSize);
+        const ty = Math.floor(worldY / this.renderer.tileSize);
+        
+        await this.handleClick(tx, ty);
     }
 
     async handleClick(x, y) {
