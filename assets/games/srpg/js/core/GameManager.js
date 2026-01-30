@@ -1,7 +1,8 @@
 import { GridMap } from '../battle/GridMap.js';
 import { Unit } from '../battle/Unit.js';
 import { PathFinder } from '../battle/PathFinder.js';
-import { BattleSystem, SKILLS } from '../battle/BattleSystem.js';
+import { BattleSystem } from '../battle/BattleSystem.js'; 
+import { SKILLS } from '../data/constants.js'; 
 import { AI } from '../battle/AI.js';
 import { Renderer } from '../ui/Renderer.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -15,6 +16,10 @@ export class GameManager {
         this.effectManager = new EffectManager();
         this.pathFinder = new PathFinder();
         this.battleSystem = new BattleSystem();
+        
+        // [중요] BattleSystem에 맵 정보 주입
+        this.battleSystem.setMap(this.gridMap);
+
         this.ai = new AI();
         
         this.units = [];
@@ -46,7 +51,6 @@ export class GameManager {
         this.diaNameEl = document.getElementById('dia-name');
         this.diaTextEl = document.getElementById('dia-text');
 
-        // [신규] 토스트 메시지 관련
         this.toastEl = document.getElementById('game-toast');
         this.toastTimer = null;
     }
@@ -75,7 +79,6 @@ export class GameManager {
         const res = await fetch('./js/data/roster.json');
         this.roster = await res.json();
         this.roster.forEach(c => { if(c.equippedItemId === undefined) c.equippedItemId = null; });
-        
         this.selectedRoster = this.roster.filter(c => c.isFixed).map(c => c.id);
         this.renderBarracks();
     }
@@ -176,6 +179,15 @@ export class GameManager {
         });
     }
 
+    showToast(message) {
+        this.toastEl.innerText = message;
+        this.toastEl.style.display = 'block';
+        if (this.toastTimer) clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => {
+            this.toastEl.style.display = 'none';
+        }, 1500);
+    }
+
     async startBattle() {
         document.getElementById('barracks-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
@@ -183,20 +195,6 @@ export class GameManager {
         await this.loadMapAndUnits();
         this.playIntroDialogue();
         this.loop();
-    }
-
-    // [신규] 토스트 메시지 출력
-    showToast(message) {
-        this.toastEl.innerText = message;
-        this.toastEl.style.display = 'block';
-        
-        // 기존 타이머 취소
-        if (this.toastTimer) clearTimeout(this.toastTimer);
-        
-        // 1.5초 후 사라짐
-        this.toastTimer = setTimeout(() => {
-            this.toastEl.style.display = 'none';
-        }, 1500);
     }
 
     playIntroDialogue() {
@@ -247,6 +245,8 @@ export class GameManager {
             
             this.gridMap.load(stage1);
             
+            this.battleSystem.setMap(this.gridMap);
+            
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo, null);
@@ -266,21 +266,17 @@ export class GameManager {
 
             this.selectedRoster.forEach((charId, index) => {
                 if (index >= spawnCandidates.length) return;
-                
                 const charData = this.roster.find(c => c.id === charId);
                 const classInfo = this.classes[charData.class];
                 const pos = spawnCandidates[index];
-
                 let itemInfo = null;
                 if (charData.equippedItemId) {
                     itemInfo = this.items.find(i => i.id === charData.equippedItemId);
                 }
-
                 const newUnit = new Unit({
                     id: charData.id, name: charData.name, class: charData.class, team: 'blue',
                     x: pos.x, y: pos.y
                 }, classInfo, itemInfo);
-                
                 newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
@@ -425,8 +421,7 @@ export class GameManager {
         this.uiManager.showActionMenu(this.selectedUnit, () => this.selectAttack(), () => this.openSkillMenu(), () => this.wait());
     }
     openSkillMenu() { this.uiManager.showSkillMenu(this.selectedUnit, (skillId) => this.selectSkill(skillId)); }
-
-    // [수정] 알림 창 사용 (alert 대체)
+    
     selectAttack() { 
         this.selectedAction = { type: 'attack' }; 
         this.calculateRange(this.selectedUnit.attackRange);
@@ -437,7 +432,7 @@ export class GameManager {
         });
 
         if (!hasEnemy) {
-            this.showToast("범위 내에 적이 없습니다!"); // [수정]
+            this.showToast("범위 내에 적이 없습니다!");
             this.attackableTiles = []; 
             this.openActionMenu(); 
             return;
@@ -454,16 +449,12 @@ export class GameManager {
         const hasTarget = this.attackableTiles.some(tile => {
             const u = this.getUnitAt(tile.x, tile.y);
             if (!u) return false;
-
-            if (skill.type === 'heal') {
-                return u.team === 'blue'; 
-            } else {
-                return u.team === 'red'; 
-            }
+            if (skill.type === 'heal') return u.team === 'blue'; 
+            else return u.team === 'red'; 
         });
 
         if (!hasTarget) {
-            this.showToast("범위 내에 유효한 대상이 없습니다!"); // [수정]
+            this.showToast("범위 내에 유효한 대상이 없습니다!");
             this.attackableTiles = [];
             this.openActionMenu();
             return;

@@ -1,4 +1,4 @@
-import { SKILLS } from '../battle/BattleSystem.js';
+import { SKILLS, TERRAIN_DATA } from '../data/constants.js';
 
 export class UIManager {
     constructor() {
@@ -6,9 +6,7 @@ export class UIManager {
         this.classEl = document.getElementById('ui-class');
         
         this.hpBarEl = document.getElementById('ui-hp-bar');
-        this.hpTextEl = document.getElementById('ui-hp-text');
         this.mpBarEl = document.getElementById('ui-mp-bar');
-        this.mpTextEl = document.getElementById('ui-mp-text');
         
         this.atkEl = document.getElementById('ui-atk');
         this.defEl = document.getElementById('ui-def');
@@ -26,23 +24,13 @@ export class UIManager {
         this.btnMagic = document.getElementById('btn-magic');
         this.btnWait = document.getElementById('btn-wait');
 
-        // [신규] 줌 버튼
         this.btnZoomIn = document.getElementById('btn-zoom-in');
         this.btnZoomOut = document.getElementById('btn-zoom-out');
-        
-        this.terrainNames = { 0: "평지", 1: "산악", 2: "강" };
     }
 
-    // [신규] 줌 이벤트 연결
     setupZoomControls(onZoomIn, onZoomOut) {
-        this.btnZoomIn.onclick = (e) => {
-            e.stopPropagation(); // 맵 클릭 방지
-            onZoomIn();
-        };
-        this.btnZoomOut.onclick = (e) => {
-            e.stopPropagation();
-            onZoomOut();
-        };
+        this.btnZoomIn.onclick = (e) => { e.stopPropagation(); onZoomIn(); };
+        this.btnZoomOut.onclick = (e) => { e.stopPropagation(); onZoomOut(); };
     }
 
     updateUnit(unit) {
@@ -64,17 +52,17 @@ export class UIManager {
 
         const hpPct = (unit.currentHp / unit.maxHp) * 100;
         this.hpBarEl.style.width = `${hpPct}%`;
-        this.hpTextEl.innerText = `HP ${unit.currentHp}/${unit.maxHp}`;
         this.hpBarEl.style.backgroundColor = hpPct > 50 ? '#00ff00' : (hpPct > 25 ? '#ffff00' : '#ff0000');
 
         const mpPct = unit.maxMp > 0 ? (unit.currentMp / unit.maxMp) * 100 : 0;
         this.mpBarEl.style.width = `${mpPct}%`;
-        this.mpTextEl.innerText = `MP ${unit.currentMp}/${unit.maxMp}`;
     }
 
+    // [수정] 지형 정보 업데이트
     updateTerrain(type) {
-        this.terrainEl.innerText = this.terrainNames[type] || "알 수 없음";
-        this.terrainEffectEl.innerText = type === 1 ? "방어 +10%" : (type === 2 ? "회피 -10%" : "-");
+        const tData = TERRAIN_DATA[type] || TERRAIN_DATA[0];
+        this.terrainEl.innerText = tData.name;
+        this.terrainEffectEl.innerText = tData.desc; // "이동비용: 2 / 방어 +20%" 등
     }
 
     showActionMenu(unit, onAttack, onMagic, onWait) {

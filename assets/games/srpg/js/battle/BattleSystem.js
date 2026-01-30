@@ -1,23 +1,35 @@
-export const SKILLS = {
-    "fire": { 
-        name: "화계", cost: 10, range: 3, power: 1.5, 
-        type: "magic_damage", aoe: "cross" 
-    },
-    "heal": { 
-        name: "구원", cost: 15, range: 2, power: 2.0, 
-        type: "heal", aoe: "single" 
-    },
-    "smash": { 
-        name: "강타", cost: 8, range: 1, power: 1.3, 
-        type: "phys_damage", aoe: "single" 
-    }
-};
+import { SKILLS, TERRAIN_DATA } from '../data/constants.js';
+
+export { SKILLS }; // 다른 곳에서 쓸 수 있게 내보냄
 
 export class BattleSystem {
-    constructor() {}
+    constructor() {
+        this.gridMap = null; // GridMap 참조가 필요함
+    }
 
+    // GameManager에서 gridMap을 주입받기 위한 메서드
+    setMap(gridMap) {
+        this.gridMap = gridMap;
+    }
+
+    // [수정] 지형 방어 보너스 적용
     calculateDamage(attacker, defender) {
-        let damage = attacker.atk - defender.def;
+        let defense = defender.def;
+        
+        // 지형 보너스 확인
+        if (this.gridMap) {
+            const terrainType = this.gridMap.getTerrain(defender.x, defender.y);
+            const tData = TERRAIN_DATA[terrainType];
+            if (tData && tData.defBonus !== 0) {
+                // 방어력 증가 (퍼센트 적용)
+                // 예: 방어 10, 산(+20%) -> 10 + 2 = 12
+                // 방어 10, 강(-10%) -> 10 - 1 = 9
+                defense += Math.floor(defense * tData.defBonus);
+                console.log(`Terrain Bonus: ${tData.name} (${tData.defBonus * 100}%) applied to ${defender.name}`);
+            }
+        }
+
+        let damage = attacker.atk - defense;
         if (damage <= 0) damage = 1;
         const variance = (Math.random() * 0.2) + 0.9;
         return Math.floor(damage * variance);
@@ -29,22 +41,28 @@ export class BattleSystem {
 
         if (skill.type === 'magic_damage') {
             basePower = attacker.int * skill.power;
+            // 마법은 지형 효과 무시 (일반적으로)
             finalValue = basePower - (defender.int * 0.5);
         } else if (skill.type === 'heal') {
             basePower = attacker.int * skill.power;
             finalValue = basePower;
         } else if (skill.type === 'phys_damage') {
             basePower = attacker.atk * skill.power;
-            finalValue = basePower - defender.def;
+            // 물리 스킬은 지형 효과 적용
+            let defense = defender.def;
+            if (this.gridMap) {
+                const tType = this.gridMap.getTerrain(defender.x, defender.y);
+                const tData = TERRAIN_DATA[tType];
+                if (tData) defense += Math.floor(defense * tData.defBonus);
+            }
+            finalValue = basePower - defense;
         }
 
         if (finalValue <= 1) finalValue = 1;
         return Math.floor(finalValue);
     }
 
-    // 일반 공격 (쌍방 반격 가능)
     async executeAttack(attacker, defender, effectManager) {
-        // 1. 선제 공격
         attacker.attackBump(defender.x, defender.y);
         await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -56,21 +74,17 @@ export class BattleSystem {
 
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        // 2. 반격 체크
         if (!defender.isDead()) {
             const dist = Math.abs(attacker.x - defender.x) + Math.abs(attacker.y - defender.y);
             if (dist <= defender.attackRange) {
                 await this.performCounterAttack(defender, attacker, effectManager);
             }
         }
-
         return damage;
     }
 
-    // 스킬 실행
     async executeSkill(attacker, targetX, targetY, skillId, allUnits, effectManager) {
         const skill = SKILLS[skillId];
-        
         attacker.useMp(skill.cost);
         effectManager.addDamageText(attacker.x, attacker.y, `MP -${skill.cost}`, '#5555ff');
 
@@ -91,10 +105,8 @@ export class BattleSystem {
             });
         }
 
-        // 스킬 효과 적용
         for (const target of targets) {
             const power = this.calculateSkillPower(attacker, target, skill);
-
             if (skill.type === 'magic_damage' || skill.type === 'phys_damage') {
                 target.takeDamage(power);
                 effectManager.addDamageText(target.x, target.y, power, '#ffaa00');
@@ -106,31 +118,21 @@ export class BattleSystem {
 
         await new Promise(resolve => setTimeout(resolve, 400));
 
-        // [신규] 물리 스킬('phys_damage')인 경우, 메인 타겟은 반격 기회를 가짐
         if (skill.type === 'phys_damage' && mainTarget && !mainTarget.isDead() && mainTarget.team !== attacker.team) {
             const dist = Math.abs(attacker.x - mainTarget.x) + Math.abs(attacker.y - mainTarget.y);
-            // 사거리 체크
             if (dist <= mainTarget.attackRange) {
-                console.log(`Battle: ${mainTarget.name} counters against skill!`);
                 await this.performCounterAttack(mainTarget, attacker, effectManager);
             }
         }
     }
 
-    // [공통] 반격 실행 함수 (코드 중복 제거)
     async performCounterAttack(defender, attacker, effectManager) {
-        // 반격 전 뜸들이기
         await new Promise(resolve => setTimeout(resolve, 200));
-
-        // 반격 모션
         defender.attackBump(attacker.x, attacker.y);
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // 반격 데미지
         const counterDamage = this.calculateDamage(defender, attacker);
         attacker.takeDamage(counterDamage);
-
-        // 반격 텍스트 (주황색)
         effectManager.addDamageText(attacker.x, attacker.y, counterDamage, '#ff8844');
 
         await new Promise(resolve => setTimeout(resolve, 300));
