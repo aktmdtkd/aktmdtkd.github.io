@@ -2,8 +2,13 @@ export class Renderer {
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
-        this.tileSize = 40;
+        this.tileSize = 40; // 기본 크기
         this.camera = { x: 0, y: 0 };
+    }
+
+    // [신규] 줌 기능
+    setTileSize(newSize) {
+        this.tileSize = newSize;
     }
 
     updateCamera(x, y, mapCols, mapRows) {
@@ -15,21 +20,19 @@ export class Renderer {
         this.camera.x = x;
         this.camera.y = y;
 
-        // 화면 밖으로 나가지 않게 제한 (Clamping)
         if (this.camera.x < 0) this.camera.x = 0;
         if (this.camera.y < 0) this.camera.y = 0;
         
-        // 맵이 화면보다 클 때만 제한 적용
         if (mapW > viewW) {
             if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
         } else {
-            this.camera.x = 0; // 맵이 작으면 0 고정
+            this.camera.x = 0;
         }
 
         if (mapH > viewH) {
             if (this.camera.y > mapH - viewH) this.camera.y = mapH - viewH;
         } else {
-            this.camera.y = 0; // 맵이 작으면 0 고정
+            this.camera.y = 0;
         }
     }
 
@@ -45,7 +48,6 @@ export class Renderer {
                 const px = x * this.tileSize - this.camera.x;
                 const py = y * this.tileSize - this.camera.y;
 
-                // 화면 밖 타일은 그리지 않음 (성능 최적화)
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) continue;
 
@@ -80,8 +82,9 @@ export class Renderer {
 
     drawCursor(unit) {
         if(!unit) return;
-        const px = unit.pixelX - this.camera.x;
-        const py = unit.pixelY - this.camera.y;
+        // 유닛의 논리적 위치(x,y)를 현재 타일 크기로 변환
+        const px = unit.x * this.tileSize - this.camera.x;
+        const py = unit.y * this.tileSize - this.camera.y;
         
         this.ctx.strokeStyle = '#FFFF00';
         this.ctx.lineWidth = 3;
@@ -91,13 +94,23 @@ export class Renderer {
 
     drawUnits(units) {
         units.forEach(unit => {
+            // 애니메이션 중일 때만 pixelX를 쓰지만, 줌이 바뀌면 pixelX도 갱신 필요
+            // 여기서는 간단히: 이동 중이 아니면 (x * tileSize)를 쓰고, 이동 중이면 보정 필요
+            // 가장 깔끔한 방법: Unit.js에서 줌 바뀔 때 pixelX 재계산 하도록 하거나,
+            // 렌더링 시에 비율 계산. 여기서는 후자(Unit.x * tileSize + offset) 방식을 씁니다.
+
+            // 이동 애니메이션 중 오프셋(0~1 사이 비율) 계산을 위해 임시 로직 사용 가능하지만
+            // 기존 로직(pixelX)은 고정 40px 기준이라 줌 바뀌면 어긋납니다.
+            // 해결: Unit의 pixelX는 항상 '현재 타일 사이즈 기준'이어야 함. 
+            // GameManager에서 줌 변경 시 Unit들의 pixelX도 업데이트 해줄 예정.
+
             const px = unit.pixelX + unit.offsetX - this.camera.x;
             const py = unit.pixelY + unit.offsetY - this.camera.y;
             
-            if (px < -40 || py < -40 || px > this.canvas.width || py > this.canvas.height) return;
+            if (px < -this.tileSize || py < -this.tileSize || px > this.canvas.width || py > this.canvas.height) return;
 
             const size = this.tileSize;
-            const padding = 5;
+            const padding = size * 0.1; // 비율로 변경
 
             if (unit.isActionDone) {
                 this.ctx.fillStyle = '#888888';
@@ -108,24 +121,26 @@ export class Renderer {
             this.ctx.fillRect(px + padding, py + padding, size - padding*2, size - padding*2);
 
             this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = '10px Arial';
+            this.ctx.font = `${Math.floor(size/4)}px Arial`; // 폰트 크기도 가변
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(unit.name, px + size/2, py + size/2 + 4);
+            this.ctx.fillText(unit.name, px + size/2, py + size/2 + size/10);
 
             const hpRatio = unit.currentHp / unit.maxHp;
+            const barHeight = Math.max(2, size * 0.1);
+
             this.ctx.fillStyle = '#333';
-            this.ctx.fillRect(px + padding, py + size - 8, (size - padding*2), 4);
+            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2), barHeight);
             
             if(hpRatio > 0.5) this.ctx.fillStyle = '#00FF00';
             else if(hpRatio > 0.25) this.ctx.fillStyle = '#FFFF00';
             else this.ctx.fillStyle = '#FF0000';
             
-            this.ctx.fillRect(px + padding, py + size - 8, (size - padding*2) * hpRatio, 4);
+            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2) * hpRatio, barHeight);
         });
     }
 
     drawEffects(effectManager) {
-        effectManager.draw(this.ctx, this.camera);
+        effectManager.draw(this.ctx, this.camera, this.tileSize);
     }
 
     drawGameOver(result) {

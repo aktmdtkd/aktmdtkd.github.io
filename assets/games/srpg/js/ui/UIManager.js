@@ -25,8 +25,24 @@ export class UIManager {
         this.btnAttack = document.getElementById('btn-attack');
         this.btnMagic = document.getElementById('btn-magic');
         this.btnWait = document.getElementById('btn-wait');
+
+        // [신규] 줌 버튼
+        this.btnZoomIn = document.getElementById('btn-zoom-in');
+        this.btnZoomOut = document.getElementById('btn-zoom-out');
         
         this.terrainNames = { 0: "평지", 1: "산악", 2: "강" };
+    }
+
+    // [신규] 줌 이벤트 연결
+    setupZoomControls(onZoomIn, onZoomOut) {
+        this.btnZoomIn.onclick = (e) => {
+            e.stopPropagation(); // 맵 클릭 방지
+            onZoomIn();
+        };
+        this.btnZoomOut.onclick = (e) => {
+            e.stopPropagation();
+            onZoomOut();
+        };
     }
 
     updateUnit(unit) {

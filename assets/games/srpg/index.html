@@ -11,50 +11,47 @@
             color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden;
         }
         
-        /* [핵심] 반응형 컨테이너 */
         .game-wrapper {
             position: relative;
-            width: 100%;       /* 화면 꽉 채우기 */
-            max-width: 640px;  /* 하지만 640px은 넘지 않기 */
-            aspect-ratio: 4 / 3; /* 4:3 비율 유지 */
+            width: 100%; max-width: 640px;
+            aspect-ratio: 4 / 3;
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
         }
 
-        /* 캔버스가 컨테이너 크기에 맞춰 늘어남 */
         canvas { 
-            background: #000; 
-            display: block; 
-            width: 100%; 
-            height: 100%;
-            cursor: crosshair; 
+            background: #000; display: block; width: 100%; height: 100%; cursor: crosshair; 
         }
 
-        /* 턴 표시기 (HTML로 분리) */
         #turn-indicator {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
-            pointer-events: none;
-            z-index: 15;
-            border: 1px solid #777;
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0, 0, 0, 0.5); padding: 5px 10px;
+            border-radius: 5px; font-size: 14px; font-weight: bold; color: white;
+            pointer-events: none; z-index: 15; border: 1px solid #777;
         }
 
-        /* 하단 상태창 (반응형 적용) */
+        /* [신규] 줌 컨트롤 버튼 */
+        #zoom-controls {
+            position: absolute; top: 10px; right: 10px;
+            display: flex; gap: 5px; z-index: 15;
+        }
+        .zoom-btn {
+            width: 30px; height: 30px;
+            background: rgba(0, 0, 0, 0.6); border: 1px solid #777;
+            color: white; font-size: 18px; font-weight: bold;
+            cursor: pointer; border-radius: 4px; display: flex;
+            justify-content: center; align-items: center;
+            user-select: none;
+        }
+        .zoom-btn:active { background: rgba(255, 255, 255, 0.2); }
+
         #game-ui {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 20%; /* 높이를 %로 */
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 20%;
             background: rgba(0, 0, 0, 0.9); border-top: 1px solid #555;
             box-sizing: border-box; display: flex; padding: 5px 10px;
             justify-content: space-between; align-items: center;
             pointer-events: none; z-index: 10;
         }
 
-        /* 좁은 화면 대응 */
         .unit-info { display: flex; flex-direction: column; gap: 2px; width: 35%; }
         .unit-name { font-size: 14px; font-weight: bold; color: #ffcc00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .unit-class { font-size: 10px; color: #aaa; }
@@ -62,9 +59,8 @@
         .hp-bar-fill { width: 100%; height: 100%; background: #00ff00; transition: width 0.2s; }
         .mp-bar-bg { width: 100%; height: 4px; background: #222; border: 1px solid #444; border-radius: 2px; }
         .mp-bar-fill { width: 100%; height: 100%; background: #0088ff; transition: width 0.2s; }
-        .status-text { font-size: 9px; text-align: right; color: #ddd; display: none; /* 공간 부족시 숨김 */ }
+        .status-text { font-size: 9px; text-align: right; color: #ddd; display: none; }
 
-        /* 스탯 정보 (좁으면 숨김) */
         .stats-info { display: flex; gap: 8px; font-size: 12px; font-weight: bold; width: 35%; justify-content: center; }
         .stat-box { text-align: center; }
         .stat-box span { display: block; font-size: 9px; color: #aaa; font-weight: normal; }
@@ -72,18 +68,15 @@
         .terrain-info { text-align: right; width: 25%; }
         .terrain-name { font-size: 12px; font-weight: bold; color: #88ccff; }
 
-        /* 모바일용 미디어 쿼리 */
         @media (max-width: 500px) {
-            .stats-info { display: none; } /* 너무 좁으면 스탯창 숨김 */
+            .stats-info { display: none; }
             .unit-info { width: 60%; }
             .terrain-info { width: 35%; }
             #turn-indicator { font-size: 12px; padding: 3px 6px; }
         }
 
-        /* 행동 메뉴 */
         #action-menu, #skill-menu {
-            position: absolute;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(40, 40, 40, 0.95);
             border: 2px solid #ffcc00; border-radius: 8px;
             padding: 10px; display: none; flex-direction: column; gap: 8px;
@@ -102,6 +95,11 @@
         <canvas id="gameCanvas" width="640" height="480"></canvas>
         
         <div id="turn-indicator">TURN: PLAYER</div>
+
+        <div id="zoom-controls">
+            <div class="zoom-btn" id="btn-zoom-in">+</div>
+            <div class="zoom-btn" id="btn-zoom-out">-</div>
+        </div>
 
         <div id="action-menu">
             <div class="menu-title">행동 선택</div>

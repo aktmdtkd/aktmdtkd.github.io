@@ -32,7 +32,6 @@ export class GameManager {
         this.lastHoverX = -1;
         this.lastHoverY = -1;
 
-        // 드래그 관련
         this.isMouseDown = false;
         this.isDragging = false;
         this.dragStartX = 0;
@@ -40,22 +39,77 @@ export class GameManager {
         this.cameraStartX = 0;
         this.cameraStartY = 0;
 
-        // [신규] 턴 표시 HTML 엘리먼트
         this.turnIndicator = document.getElementById('turn-indicator');
     }
 
     async init() {
         this.setupInput();
+        // [신규] 줌 컨트롤 연결
+        this.uiManager.setupZoomControls(
+            () => this.handleZoom(10),  // Zoom In
+            () => this.handleZoom(-10)  // Zoom Out
+        );
         await this.loadData();
         this.loop();
     }
 
-    // [중요] 화면 비율 보정 함수
+    // [신규] 줌 처리 로직
+    handleZoom(delta) {
+        const oldSize = this.renderer.tileSize;
+        let newSize = oldSize + delta;
+
+        // 제한 (20px ~ 80px)
+        if (newSize < 20) newSize = 20;
+        if (newSize > 80) newSize = 80;
+
+        if (oldSize === newSize) return;
+
+        // 줌 중심점 유지 로직
+        // 현재 화면의 중앙이 맵의 어디를 보고 있었는지 계산
+        const viewW = this.renderer.canvas.width;
+        const viewH = this.renderer.canvas.height;
+        
+        const centerX = this.renderer.camera.x + viewW / 2;
+        const centerY = this.renderer.camera.y + viewH / 2;
+
+        const ratio = newSize / oldSize;
+
+        const newCenterX = centerX * ratio;
+        const newCenterY = centerY * ratio;
+
+        this.renderer.setTileSize(newSize);
+        
+        // 줌 변경에 따른 유닛 픽셀 좌표 업데이트
+        this.units.forEach(u => {
+            u.tileSize = newSize; // 유닛 내부 타일사이즈 갱신
+            // 이동 중이 아닐 때만 강제 동기화 (이동 중이면 애니메이션 튈 수 있음 - 간소화 처리)
+            if (!u.isMoving) {
+                u.pixelX = u.x * newSize;
+                u.pixelY = u.y * newSize;
+                u.targetPixelX = u.x * newSize;
+                u.targetPixelY = u.y * newSize;
+            } else {
+                // 이동 중이라면 비율대로 위치 보정
+                u.pixelX *= ratio;
+                u.pixelY *= ratio;
+                u.targetPixelX *= ratio;
+                u.targetPixelY *= ratio;
+            }
+        });
+
+        // 카메라 위치 재설정
+        this.renderer.updateCamera(
+            newCenterX - viewW / 2, 
+            newCenterY - viewH / 2, 
+            this.gridMap.cols, 
+            this.gridMap.rows
+        );
+    }
+
     getMousePos(evt) {
         const canvas = this.renderer.canvas;
         const rect = canvas.getBoundingClientRect();
         
-        // CSS 크기와 캔버스 실제 크기(640x480)의 비율 계산
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
@@ -77,7 +131,6 @@ export class GameManager {
             this.isMouseDown = true;
             this.isDragging = false;
             
-            // 보정된 좌표 사용
             const pos = this.getMousePos(e);
             this.dragStartX = pos.x;
             this.dragStartY = pos.y;
@@ -89,7 +142,6 @@ export class GameManager {
             e.preventDefault();
             if (this.gameOver) return;
 
-            // 보정된 좌표 사용
             const pos = this.getMousePos(e);
 
             if (this.isMouseDown) {
@@ -108,7 +160,6 @@ export class GameManager {
                 }
             }
 
-            // 호버링
             const worldX = pos.x + this.renderer.camera.x;
             const worldY = pos.y + this.renderer.camera.y;
             
@@ -306,15 +357,15 @@ export class GameManager {
 
     startEnemyTurn() {
         this.turn = 'ENEMY';
-        this.turnIndicator.innerText = `TURN: ${this.turn}`; // HTML 업데이트
-        this.turnIndicator.style.color = '#ff6666'; // 적 턴 색상
+        this.turnIndicator.innerText = `TURN: ${this.turn}`;
+        this.turnIndicator.style.color = '#ff6666';
         this.ai.runTurn(this);
     }
 
     startPlayerTurn() {
         this.turn = 'PLAYER';
-        this.turnIndicator.innerText = `TURN: ${this.turn}`; // HTML 업데이트
-        this.turnIndicator.style.color = '#ffffff'; // 아군 턴 색상
+        this.turnIndicator.innerText = `TURN: ${this.turn}`;
+        this.turnIndicator.style.color = '#ffffff';
         this.units.forEach(u => u.resetTurn());
         
         const mainChar = this.units.find(u => u.name === '조조' && !u.isDead());
@@ -365,6 +416,8 @@ export class GameManager {
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo);
+                // [신규] 유닛에게 타일 사이즈 정보 전달 (초기화)
+                newUnit.tileSize = this.renderer.tileSize;
                 this.units.push(newUnit);
             });
             
@@ -402,9 +455,6 @@ export class GameManager {
         this.renderer.drawUnits(this.units);
         this.renderer.drawEffects(this.effectManager);
 
-        // [삭제] 캔버스에 텍스트 그리는 코드 제거
-        // this.renderer.ctx.fillText... 
-        
         if (this.gameOver) {
             this.renderer.drawGameOver(this.gameOver);
         }
