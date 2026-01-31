@@ -9,31 +9,27 @@ export class Renderer {
         this.camera = { x: 0, y: 0 };
         this.images = {}; 
         
-        // 애니메이션 프레임 관리
+        // 애니메이션 프레임
         this.frameCount = 0;
         this.spriteCycle = 0; 
-        this.spriteFrame = 1; // 1:차렷
+        this.spriteFrame = 1;
 
         this.loadImages();
     }
 
     loadImages() {
-        // [중요] 사용자의 폴더 구조(./image/)에 맞춘 경로 설정
+        // 이미지는 ./image/ 폴더에서 불러옵니다.
         const imageList = [
             { key: 'enemy', file: 'bg_rm_jbb.png' }, 
-            { key: 'caocao', file: 'bg_rm_jbb.png' }, // 조조도 일단 병사로
+            { key: 'caocao', file: 'bg_rm_jbb.png' },
         ];
         
         imageList.forEach(data => {
             const img = new Image();
-            // 경로: index.html과 같은 위치의 image 폴더
             img.src = `./image/${data.file}`;
             
             img.onload = () => {
                 this.images[data.key] = img;
-            };
-            img.onerror = () => {
-                console.warn(`⚠️ 이미지 로드 실패: ${data.file}`);
             };
         });
     }
@@ -41,7 +37,7 @@ export class Renderer {
     resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
-        this.ctx.imageSmoothingEnabled = false; // 도트 선명하게
+        this.ctx.imageSmoothingEnabled = false; 
     }
 
     setTileSize(size) {
@@ -52,7 +48,6 @@ export class Renderer {
         const viewW = this.canvas.width;
         const viewH = this.canvas.height;
         
-        // 맵 데이터가 아직 없을 때 방어
         if (!mapCols || !mapRows) return;
 
         const maxX = (mapCols * this.tileSize) - viewW;
@@ -75,46 +70,50 @@ export class Renderer {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 걷기 애니메이션 (약 15프레임마다 갱신)
         this.frameCount++;
         if (this.frameCount > 15) { 
             this.frameCount = 0;
-            const cycle = [1, 0, 1, 2]; // 차렷 -> 왼발 -> 차렷 -> 오른발
+            const cycle = [1, 0, 1, 2];
             this.spriteCycle = (this.spriteCycle + 1) % 4;
             this.spriteFrame = cycle[this.spriteCycle];
         }
     }
 
-    // [핵심 수정] 대각선 버그 해결을 위해 "카메라 범위 루프" 방식으로 복구
+    // [핵심 수정] 복잡한 계산식 제거 -> 0부터 끝까지 다 그리기 (가장 안전함)
     drawMap(gridMap) {
-        if (!gridMap) return;
+        // 맵 데이터가 없으면 아무것도 안 함
+        if (!gridMap || !gridMap.cols || !gridMap.rows) return;
 
-        // 화면에 보이는 타일의 시작과 끝 인덱스 계산
-        const startCol = Math.floor(this.camera.x / this.tileSize);
-        const startRow = Math.floor(this.camera.y / this.tileSize);
-        
-        // 화면 크기만큼 더해서 끝 인덱스 계산 (+1은 여유분)
-        const endCol = startCol + (this.canvas.width / this.tileSize) + 1;
-        const endRow = startRow + (this.canvas.height / this.tileSize) + 1;
+        const rows = gridMap.rows;
+        const cols = gridMap.cols;
 
-        for (let y = startRow; y <= endRow; y++) {
-            for (let x = startCol; x <= endCol; x++) {
-                // 맵 데이터 범위 내에 있는지 확인
-                if (gridMap.isValid && gridMap.isValid(x, y)) {
+        // 이중 반복문으로 맵 전체 순회
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                
+                // 1. 카메라 좌표 반영
+                const px = Math.floor(x * this.tileSize - this.camera.x);
+                const py = Math.floor(y * this.tileSize - this.camera.y);
+
+                // 2. (최적화) 화면 밖으로 너무 멀리 나간 것만 그리지 않음
+                if (px < -this.tileSize || py < -this.tileSize || 
+                    px > this.canvas.width || py > this.canvas.height) {
+                    continue;
+                }
+
+                // 3. 타일 그리기 (네모 박스)
+                if (gridMap.isValid(x, y)) {
                     const terrain = gridMap.getTerrain(x, y);
-                    
-                    const px = Math.floor(x * this.tileSize - this.camera.x);
-                    const py = Math.floor(y * this.tileSize - this.camera.y);
 
-                    // 지형 색상 그리기
+                    // 지형 색상
                     if (terrain === 1) this.ctx.fillStyle = '#8B4513'; // 산 (갈색)
                     else if (terrain === 2) this.ctx.fillStyle = '#4169E1'; // 강 (파란색)
                     else this.ctx.fillStyle = '#228B22'; // 평지 (녹색)
                     
-                    // 1px 틈새 방지를 위해 약간 겹치게 그리기
+                    // 타일 채우기
                     this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize);
                     
-                    // 격자(테두리)
+                    // 타일 테두리
                     this.ctx.strokeStyle = 'rgba(0,0,0,0.15)';
                     this.ctx.lineWidth = 1;
                     this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
@@ -142,7 +141,6 @@ export class Renderer {
     }
 
     drawUnits(units) {
-        // Y축 정렬 (원근감)
         const sortedUnits = [...units].sort((a, b) => a.pixelY - b.pixelY);
 
         sortedUnits.forEach(unit => {
@@ -151,16 +149,17 @@ export class Renderer {
             const px = Math.floor(unit.pixelX + unit.offsetX - this.camera.x);
             const py = Math.floor(unit.pixelY + unit.offsetY - this.camera.y);
 
+            // 이미지 찾기
             let img = null;
             if (unit.name === '조조') img = this.images['caocao'];
             else if (unit.team === 'red') img = this.images['enemy'];
             else img = this.images['caocao'];
 
-            // 이미지가 로드되었으면 그리기
+            // 이미지가 있으면 스프라이트 그리기
             if (img && img.complete && img.naturalWidth > 0) {
                 this.drawSprite(this.ctx, img, unit, px, py);
             } else {
-                // 없으면 네모 박스 (Fallback)
+                // 없으면 네모 박스
                 this.drawFallbackUnit(this.ctx, unit, px, py);
             }
 
