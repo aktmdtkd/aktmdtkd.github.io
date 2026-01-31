@@ -8,7 +8,7 @@ export class Renderer {
         // [신규] 유닛 스프라이트 이미지 로드
         this.unitSprite = new Image();
         // index.html과 같은 위치에 이미지가 있다고 가정합니다.
-        this.unitSprite.src = './assets/games/game_assets/image/red_ngb.png'; 
+        this.unitSprite.src = '../game_assets/image/red_ngb.png'; 
         this.isSpriteLoaded = false;
         
         this.unitSprite.onload = () => {
