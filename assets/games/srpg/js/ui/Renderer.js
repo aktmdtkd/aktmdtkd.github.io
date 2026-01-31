@@ -9,7 +9,7 @@ export class Renderer {
         this.camera = { x: 0, y: 0 };
         this.images = {}; 
         
-        // 애니메이션 타이머
+        // 애니메이션 프레임
         this.frameCount = 0;
         this.spriteCycle = 0; 
         this.spriteFrame = 1;
@@ -18,17 +18,24 @@ export class Renderer {
     }
 
     loadImages() {
+        // [수정됨] 사용자분의 폴더 구조(image 폴더)에 맞춤
+        // index.html 옆에 'image' 폴더가 있어야 합니다.
         const imageList = [
-            { key: 'enemy', file: 'bg_rm_jbb.png' }, // 보내주신 병사 이미지
-            { key: 'caocao', file: 'bg_rm_jbb.png' }, // 조조도 일단 병사로 (테스트용)
+            { key: 'enemy', file: 'bg_rm_jbb.png' }, 
+            { key: 'caocao', file: 'bg_rm_jbb.png' }, // 조조도 일단 이걸로
         ];
         
         imageList.forEach(data => {
             const img = new Image();
-            img.src = `./assets/images/units/${data.file}`; // 경로 확인
+            // [중요] 경로 수정: ./assets/images/units/ -> ./image/
+            img.src = `./image/${data.file}`;
             
             img.onload = () => {
                 this.images[data.key] = img;
+                console.log(`✅ 이미지 로드 성공: ${data.file}`);
+            };
+            img.onerror = () => {
+                console.warn(`⚠️ 이미지 로드 실패: ${data.file} (경로: ./image/${data.file})`);
             };
         });
     }
@@ -47,6 +54,9 @@ export class Renderer {
         const viewW = this.canvas.width;
         const viewH = this.canvas.height;
         
+        // 맵이 로드되지 않았을 때 방어 코드
+        if (!mapCols || !mapRows) return;
+
         const maxX = (mapCols * this.tileSize) - viewW;
         const maxY = (mapRows * this.tileSize) - viewH;
 
@@ -67,38 +77,42 @@ export class Renderer {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 걷기 애니메이션
         this.frameCount++;
         if (this.frameCount > 15) { 
             this.frameCount = 0;
-            const cycle = [1, 0, 1, 2]; // 차렷 -> 왼발 -> 차렷 -> 오른발
+            const cycle = [1, 0, 1, 2];
             this.spriteCycle = (this.spriteCycle + 1) % 4;
             this.spriteFrame = cycle[this.spriteCycle];
         }
     }
 
-    // [수정됨] "대각선 버그" 해결을 위해 전체 맵을 순회하는 방식으로 변경
     drawMap(gridMap) {
-        if (!gridMap || !gridMap.terrain) return;
+        // [디버깅] 맵 데이터가 없으면 로그 출력하고 중단
+        if (!gridMap) {
+            // console.log("Map data is missing"); 
+            return;
+        }
 
-        // startCol, endCol 계산을 없애고 맵 전체를 돕니다.
-        const rows = gridMap.rows;
-        const cols = gridMap.cols;
+        // rows, cols가 GridMap에 있는지 확인. 없으면 기본값.
+        const rows = gridMap.rows || 20;
+        const cols = gridMap.cols || 20;
 
+        // 전체 맵 순회 (대각선 끊김 방지)
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
-                // 1. 화면에 그릴 위치 계산
+                
+                // 1. 카메라 적용한 좌표 계산
                 const px = Math.floor(x * this.tileSize - this.camera.x);
                 const py = Math.floor(y * this.tileSize - this.camera.y);
 
-                // 2. 화면 밖으로 완전히 나간 타일은 그리지 않음 (성능 최적화)
+                // 2. 화면 밖 그리기 생략 (성능 최적화)
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) {
                     continue;
                 }
 
-                // 3. 유효한 타일이면 그리기
-                if (gridMap.isValid(x, y)) {
+                // 3. 지형 그리기
+                if (gridMap.isValid && gridMap.isValid(x, y)) {
                     const terrain = gridMap.getTerrain(x, y);
 
                     // 지형 색상
@@ -108,7 +122,7 @@ export class Renderer {
                     
                     this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize);
                     
-                    // 격자(테두리)
+                    // 격자
                     this.ctx.strokeStyle = 'rgba(0,0,0,0.15)';
                     this.ctx.lineWidth = 1;
                     this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
@@ -144,15 +158,17 @@ export class Renderer {
             const px = Math.floor(unit.pixelX + unit.offsetX - this.camera.x);
             const py = Math.floor(unit.pixelY + unit.offsetY - this.camera.y);
 
-            // 이미지 매핑
+            // 이미지 찾기
             let img = null;
             if (unit.name === '조조') img = this.images['caocao'];
             else if (unit.team === 'red') img = this.images['enemy'];
-            else img = this.images['caocao']; 
+            else img = this.images['caocao'];
 
+            // [중요] 이미지가 로드되었는지 확인 (complete && naturalWidth > 0)
             if (img && img.complete && img.naturalWidth > 0) {
                 this.drawSprite(this.ctx, img, unit, px, py);
             } else {
+                // 로드 실패 시 동그라미 그리기
                 this.drawFallbackUnit(this.ctx, unit, px, py);
             }
 
