@@ -1,4 +1,5 @@
 export class Unit {
+    // [수정] itemInfo 인자 추가
     constructor(config, classInfo, itemInfo = null) {
         this.id = config.id;
         this.name = config.name;
@@ -16,41 +17,38 @@ export class Unit {
         this.targetPixelX = this.pixelX;
         this.targetPixelY = this.pixelY;
         this.isMoving = false;
-        this.moveSpeed = 4; // 이동 속도
-
-        // [중요] 방향 속성 (0:하, 1:좌, 2:우, 3:상) - 스프라이트 시트 순서에 맞춤
-        this.direction = 0; 
+        this.moveSpeed = 8;
 
         this.className = classInfo.name;
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
         
-        // 스탯 초기화
+        // --- 스탯 계산 (기본 + 아이템) ---
+        // 아이템 스탯 추출
         const iStats = itemInfo ? itemInfo.stats : {};
+
+        // 1. HP
         this.maxHp = classInfo.hp + (iStats.hp || 0);
         this.currentHp = this.maxHp;
+        
+        // 2. MP
         this.maxMp = (classInfo.mp || 0) + (iStats.mp || 0);
         this.currentMp = this.maxMp;
+        
+        // 3. 공격력 / 방어력 / 정신력
         this.atk = classInfo.atk + (iStats.atk || 0);
         this.def = classInfo.def + (iStats.def || 0);
         this.int = (classInfo.int || 10) + (iStats.int || 0);
         
         this.skills = classInfo.skills || [];
-        this.equippedItemName = itemInfo ? itemInfo.name : null; 
+        this.equippedItemName = itemInfo ? itemInfo.name : null; // 디버깅용
+
         this.isActionDone = false;
     }
 
     attackBump(targetX, targetY) {
         const dx = targetX - this.x;
         const dy = targetY - this.y;
-        
-        // 공격할 때도 방향을 바라보게 설정
-        if (Math.abs(dx) > Math.abs(dy)) {
-            this.direction = dx > 0 ? 2 : 1; // 우 or 좌
-        } else {
-            this.direction = dy > 0 ? 0 : 3; // 하 or 상
-        }
-
         const distance = Math.sqrt(dx*dx + dy*dy);
         if(distance > 0) {
             this.offsetX = (dx / distance) * 20;
@@ -68,16 +66,6 @@ export class Unit {
     setNextStep() {
         if (this.pathQueue.length > 0) {
             const nextTile = this.pathQueue[0];
-            
-            // [중요] 다음 타일로 이동할 때 방향 계산
-            const dx = nextTile.x - this.x;
-            const dy = nextTile.y - this.y;
-
-            if (dx > 0) this.direction = 2; // 오른쪽
-            else if (dx < 0) this.direction = 1; // 왼쪽
-            else if (dy > 0) this.direction = 0; // 아래
-            else if (dy < 0) this.direction = 3; // 위
-
             this.targetPixelX = nextTile.x * this.tileSize;
             this.targetPixelY = nextTile.y * this.tileSize;
         } else {
