@@ -9,34 +9,26 @@ export class Renderer {
         this.camera = { x: 0, y: 0 };
         this.images = {}; 
         
-        // 애니메이션 프레임 관리
+        // 애니메이션 타이머
         this.frameCount = 0;
         this.spriteCycle = 0; 
-        this.spriteFrame = 1; // 1:차렷 자세
+        this.spriteFrame = 1;
 
         this.loadImages();
     }
 
     loadImages() {
-        // [중요] 여기에 사용할 이미지 파일 목록을 정의합니다.
-        // key: 코드에서 부를 이름 / file: 실제 파일명
         const imageList = [
             { key: 'enemy', file: 'bg_rm_jbb.png' }, // 보내주신 병사 이미지
-            { key: 'caocao', file: 'bg_rm_jbb.png' }, // 조조 이미지가 없으면 일단 병사로 대체 (테스트용)
-            // { key: 'caocao', file: 'caocao.png' } // 나중에 조조 이미지를 넣으면 주석 해제하세요
+            { key: 'caocao', file: 'bg_rm_jbb.png' }, // 조조도 일단 병사로 (테스트용)
         ];
         
         imageList.forEach(data => {
             const img = new Image();
-            // 요청하신 경로: ./image/파일명
-            img.src = `./image/${data.file}`;
+            img.src = `./assets/images/units/${data.file}`; // 경로 확인
             
             img.onload = () => {
                 this.images[data.key] = img;
-                console.log(`✅ 이미지 로드 성공: ${data.file}`);
-            };
-            img.onerror = () => {
-                console.warn(`⚠️ 이미지 로드 실패: ${data.file} (경로를 확인하세요)`);
             };
         });
     }
@@ -44,7 +36,7 @@ export class Renderer {
     resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
-        this.ctx.imageSmoothingEnabled = false; // 도트(픽셀)를 선명하게 유지
+        this.ctx.imageSmoothingEnabled = false; 
     }
 
     setTileSize(size) {
@@ -75,34 +67,37 @@ export class Renderer {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 걷기 애니메이션 사이클 (약 15프레임마다 발을 바꿈)
+        // 걷기 애니메이션
         this.frameCount++;
         if (this.frameCount > 15) { 
             this.frameCount = 0;
-            // 4열 이미지용 걷기 패턴: [차렷 -> 왼발 -> 차렷 -> 오른발]
-            // 이미지 인덱스: 1 -> 0 -> 1 -> 2
-            const cycle = [1, 0, 1, 2];
+            const cycle = [1, 0, 1, 2]; // 차렷 -> 왼발 -> 차렷 -> 오른발
             this.spriteCycle = (this.spriteCycle + 1) % 4;
             this.spriteFrame = cycle[this.spriteCycle];
         }
     }
 
+    // [수정됨] "대각선 버그" 해결을 위해 전체 맵을 순회하는 방식으로 변경
     drawMap(gridMap) {
-        if (!gridMap) return;
-        const rows = gridMap.rows || 20;
-        const cols = gridMap.cols || 20;
+        if (!gridMap || !gridMap.terrain) return;
+
+        // startCol, endCol 계산을 없애고 맵 전체를 돕니다.
+        const rows = gridMap.rows;
+        const cols = gridMap.cols;
 
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
-                // 화면 밖이면 그리지 않음 (최적화)
+                // 1. 화면에 그릴 위치 계산
                 const px = Math.floor(x * this.tileSize - this.camera.x);
                 const py = Math.floor(y * this.tileSize - this.camera.y);
 
+                // 2. 화면 밖으로 완전히 나간 타일은 그리지 않음 (성능 최적화)
                 if (px < -this.tileSize || py < -this.tileSize || 
                     px > this.canvas.width || py > this.canvas.height) {
                     continue;
                 }
 
+                // 3. 유효한 타일이면 그리기
                 if (gridMap.isValid(x, y)) {
                     const terrain = gridMap.getTerrain(x, y);
 
@@ -113,6 +108,7 @@ export class Renderer {
                     
                     this.ctx.fillRect(px, px + this.tileSize, this.tileSize, this.tileSize);
                     
+                    // 격자(테두리)
                     this.ctx.strokeStyle = 'rgba(0,0,0,0.15)';
                     this.ctx.lineWidth = 1;
                     this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
@@ -140,7 +136,6 @@ export class Renderer {
     }
 
     drawUnits(units) {
-        // Y좌표 정렬 (원근감)
         const sortedUnits = [...units].sort((a, b) => a.pixelY - b.pixelY);
 
         sortedUnits.forEach(unit => {
@@ -153,17 +148,14 @@ export class Renderer {
             let img = null;
             if (unit.name === '조조') img = this.images['caocao'];
             else if (unit.team === 'red') img = this.images['enemy'];
-            else img = this.images['caocao']; // 기본값
+            else img = this.images['caocao']; 
 
-            // 이미지가 로드되었으면 스프라이트 그리기
             if (img && img.complete && img.naturalWidth > 0) {
                 this.drawSprite(this.ctx, img, unit, px, py);
             } else {
-                // 로딩 안 됐으면 네모 박스 (Fallback)
                 this.drawFallbackUnit(this.ctx, unit, px, py);
             }
 
-            // 체력바
             this.drawHpBar(this.ctx, unit, px, py);
         });
     }
@@ -189,41 +181,33 @@ export class Renderer {
     }
 
     drawSprite(ctx, img, unit, x, y) {
-        // 이미지는 4열(가로) x 4행(세로) 구조입니다.
         const cols = 4;
         const rows = 4; 
 
         const frameW = img.width / cols;
         const frameH = img.height / rows;
 
-        // 방향 (Unit.js의 direction 속성: 0=하, 1=좌, 2=우, 3=상)
-        // 만약 direction이 없으면 0(정면)
         let dir = unit.direction !== undefined ? unit.direction : 0;
         
-        // 애니메이션 프레임 (움직일 때만)
-        let colIndex = 1; // 1번이 '차렷' 자세라고 가정
+        let colIndex = 1; 
         if (unit.isMoving) {
-            colIndex = this.spriteFrame; // 0, 1, 2 중 하나로 계속 변함
+            colIndex = this.spriteFrame; 
         }
 
-        // 화면에 그릴 크기 (타일보다 30% 정도 크게 그려야 머리가 위로 올라와서 자연스러움)
         const drawW = this.tileSize * 1.3; 
         const scale = drawW / frameW;
         const drawH = frameH * scale;
 
-        // 발 위치 보정 (타일의 중앙 하단에 발이 오도록)
         const drawX = x + (this.tileSize - drawW) / 2;
-        const drawY = y + (this.tileSize - drawH) - 4; // -4는 약간의 여백 보정
+        const drawY = y + (this.tileSize - drawH) - 4; 
 
         try {
             ctx.drawImage(
                 img,
-                colIndex * frameW, dir * frameH, frameW, frameH, // 원본에서 자를 위치
-                drawX, drawY, drawW, drawH // 화면에 그릴 위치
+                colIndex * frameW, dir * frameH, frameW, frameH, 
+                drawX, drawY, drawW, drawH 
             );
-        } catch (e) {
-            // 그리기 에러 시 무시
-        }
+        } catch (e) { }
     }
 
     drawEffects(effectManager) {
