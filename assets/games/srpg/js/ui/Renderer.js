@@ -4,14 +4,23 @@ export class Renderer {
         this.ctx = this.canvas.getContext('2d');
         this.tileSize = 40; 
         this.camera = { x: 0, y: 0 };
+
+        // [신규] 유닛 스프라이트 이미지 로드
+        this.unitSprite = new Image();
+        // index.html과 같은 위치에 이미지가 있다고 가정합니다.
+        this.unitSprite.src = './image_e9fed6.png'; 
+        this.isSpriteLoaded = false;
+        
+        this.unitSprite.onload = () => {
+            this.isSpriteLoaded = true;
+            console.log("Sprite Loaded");
+        };
     }
 
     // [신규] 캔버스 해상도 리사이징
     resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
-        // 캔버스 크기가 바뀌었으므로 렌더링 컨텍스트의 설정이 초기화될 수 있음(폰트 등)
-        // 필요하다면 여기서 다시 설정
     }
 
     setTileSize(newSize) {
@@ -33,7 +42,6 @@ export class Renderer {
         if (mapW > viewW) {
             if (this.camera.x > mapW - viewW) this.camera.x = mapW - viewW;
         } else {
-            // 화면이 맵보다 크면 중앙 정렬하거나 0에 둠. 여기선 0
             this.camera.x = 0;
         }
 
@@ -104,35 +112,73 @@ export class Renderer {
             const px = unit.pixelX + unit.offsetX - this.camera.x;
             const py = unit.pixelY + unit.offsetY - this.camera.y;
             
+            // 화면 밖 유닛은 그리지 않음
             if (px < -this.tileSize || py < -this.tileSize || px > this.canvas.width || py > this.canvas.height) return;
 
             const size = this.tileSize;
-            const padding = size * 0.1;
 
-            if (unit.isActionDone) {
-                this.ctx.fillStyle = '#888888';
+            // --- [신규] 스프라이트 그리기 ---
+            if (this.isSpriteLoaded) {
+                // 이미지 4x4 분할 계산
+                const spriteW = this.unitSprite.width / 4;
+                const spriteH = this.unitSprite.height / 4;
+
+                // 소스 좌표 계산 (frame:열, direction:행)
+                const srcX = unit.frame * spriteW;
+                const srcY = unit.direction * spriteH;
+
+                this.ctx.save();
+                
+                // 행동 완료 시 반투명 처리
+                if (unit.isActionDone) {
+                    this.ctx.globalAlpha = 0.6;
+                }
+
+                // drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)
+                this.ctx.drawImage(
+                    this.unitSprite,
+                    srcX, srcY, spriteW, spriteH, // 원본에서 잘라낼 영역
+                    px, py, size, size            // 화면에 그릴 영역
+                );
+                
+                this.ctx.restore();
+
             } else {
+                // 이미지가 아직 로딩되지 않았다면 기존 사각형 방식으로 그림 (에러 방지)
+                const padding = size * 0.1;
                 this.ctx.fillStyle = unit.team === 'blue' ? '#0000AA' : '#AA0000';
+                if (unit.isActionDone) this.ctx.fillStyle = '#888888';
+                this.ctx.fillRect(px + padding, py + padding, size - padding*2, size - padding*2);
             }
-            
-            this.ctx.fillRect(px + padding, py + padding, size - padding*2, size - padding*2);
 
+            // --- 유닛 이름 (그림자 추가로 가독성 확보) ---
             this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = `${Math.floor(size/4)}px Arial`;
+            this.ctx.font = `bold ${Math.floor(size/4)}px Arial`;
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(unit.name, px + size/2, py + size/2 + size/10);
-
-            const hpRatio = unit.currentHp / unit.maxHp;
-            const barHeight = Math.max(2, size * 0.1);
-
-            this.ctx.fillStyle = '#333';
-            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2), barHeight);
             
+            // 텍스트 외곽선/그림자
+            this.ctx.shadowColor = "black";
+            this.ctx.shadowBlur = 4;
+            this.ctx.lineWidth = 2;
+            
+            // 머리 위에 이름 표시
+            this.ctx.fillText(unit.name, px + size/2, py);
+            this.ctx.shadowBlur = 0; // 그림자 초기화
+
+            // --- 체력바 ---
+            const hpRatio = unit.currentHp / unit.maxHp;
+            const barHeight = Math.max(3, size * 0.1);
+
+            // 체력바 배경
+            this.ctx.fillStyle = '#333';
+            this.ctx.fillRect(px, py + size - barHeight, size, barHeight);
+            
+            // 체력바 상태 (초록/노랑/빨강)
             if(hpRatio > 0.5) this.ctx.fillStyle = '#00FF00';
             else if(hpRatio > 0.25) this.ctx.fillStyle = '#FFFF00';
             else this.ctx.fillStyle = '#FF0000';
             
-            this.ctx.fillRect(px + padding, py + size - barHeight*2, (size - padding*2) * hpRatio, barHeight);
+            this.ctx.fillRect(px, py + size - barHeight, size * hpRatio, barHeight);
         });
     }
 

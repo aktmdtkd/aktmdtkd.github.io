@@ -1,5 +1,4 @@
 export class Unit {
-    // [수정] itemInfo 인자 추가
     constructor(config, classInfo, itemInfo = null) {
         this.id = config.id;
         this.name = config.name;
@@ -17,14 +16,13 @@ export class Unit {
         this.targetPixelX = this.pixelX;
         this.targetPixelY = this.pixelY;
         this.isMoving = false;
-        this.moveSpeed = 8;
+        this.moveSpeed = 4; // 움직임이 잘 보이도록 속도를 조금 조정 (원래 8 -> 4)
 
         this.className = classInfo.name;
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
         
         // --- 스탯 계산 (기본 + 아이템) ---
-        // 아이템 스탯 추출
         const iStats = itemInfo ? itemInfo.stats : {};
 
         // 1. HP
@@ -41,14 +39,28 @@ export class Unit {
         this.int = (classInfo.int || 10) + (iStats.int || 0);
         
         this.skills = classInfo.skills || [];
-        this.equippedItemName = itemInfo ? itemInfo.name : null; // 디버깅용
+        this.equippedItemName = itemInfo ? itemInfo.name : null;
 
         this.isActionDone = false;
+
+        // [신규] 애니메이션 및 방향 속성 추가
+        // 0:아래, 1:왼쪽, 2:오른쪽, 3:위쪽 (스프라이트 시트 행 순서와 일치)
+        this.direction = 0;   
+        this.frame = 0;       // 0 ~ 3 (걷는 동작 프레임)
+        this.frameTimer = 0;  // 애니메이션 속도 조절용
     }
 
     attackBump(targetX, targetY) {
         const dx = targetX - this.x;
         const dy = targetY - this.y;
+
+        // [신규] 공격 방향 바라보기
+        if (Math.abs(dx) > Math.abs(dy)) {
+            this.direction = dx > 0 ? 2 : 1; // 우 or 좌
+        } else {
+            this.direction = dy > 0 ? 0 : 3; // 하 or 상
+        }
+
         const distance = Math.sqrt(dx*dx + dy*dy);
         if(distance > 0) {
             this.offsetX = (dx / distance) * 20;
@@ -66,6 +78,13 @@ export class Unit {
     setNextStep() {
         if (this.pathQueue.length > 0) {
             const nextTile = this.pathQueue[0];
+            
+            // [신규] 다음 타일로 이동할 때 방향 설정
+            if (nextTile.x > this.x) this.direction = 2;      // 오른쪽
+            else if (nextTile.x < this.x) this.direction = 1; // 왼쪽
+            else if (nextTile.y > this.y) this.direction = 0; // 아래
+            else if (nextTile.y < this.y) this.direction = 3; // 위
+
             this.targetPixelX = nextTile.x * this.tileSize;
             this.targetPixelY = nextTile.y * this.tileSize;
         } else {
@@ -74,6 +93,13 @@ export class Unit {
     }
 
     update() {
+        // [신규] 제자리 걸음 애니메이션 (항상 실행)
+        this.frameTimer++;
+        if (this.frameTimer > 12) { // 숫자가 클수록 느리게 걷습니다
+            this.frameTimer = 0;
+            this.frame = (this.frame + 1) % 4; // 0, 1, 2, 3 반복
+        }
+
         if (this.offsetX !== 0 || this.offsetY !== 0) {
             this.offsetX *= 0.8;
             this.offsetY *= 0.8;
