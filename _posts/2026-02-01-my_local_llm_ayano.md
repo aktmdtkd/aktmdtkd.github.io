@@ -287,15 +287,16 @@ client.run(DISCORD_TOKEN)
 
 [디스코드 봇 생성 공식 사이트](https://discord.com/developers.applications)
 
+
 저기 가셔서 봇을 만들면 됩니다.
 
-![alt text](image.png)
+![alt text](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image.png)
 
 저는 이미 만들었긴 하죠? 여러분은 저기 오른쪽 위에 'New Application'을 클릭하시면 됩니다.
 
 그러면 여기서 중요한게 아래와 같은 리스트가 떠요.
 
-![alt text](image-1.png)
+![alt text](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image-1.png)
 
 여기서 여러분이 우선 보실 것은 Bot입니다.
 
@@ -309,7 +310,7 @@ Bot에서 3개를 해야하는데, 우선 'Token Reset'을 해야합니다.
 
 그리고 하나 더. 아래쪽에 이걸 해야해요.
 
-![alt text](image-2.png)
+![alt text](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image-2.png)
 
 여기서 아래에 있는걸 체크 하셔야 합니다.
 
@@ -317,7 +318,7 @@ Bot에서 3개를 해야하는데, 우선 'Token Reset'을 해야합니다.
 
 마지막으로 설정할게 아래를 보시면
 
-![alt text](image-3.png)
+![alt text](https://raw.githubusercontent.com/aktmdtkd/aktmdtkd.github.io/master/_posts/image-3.png)
 
 여기서 우선 Bot Permission을 누르시고, Administrator를 체크하세요.
 
