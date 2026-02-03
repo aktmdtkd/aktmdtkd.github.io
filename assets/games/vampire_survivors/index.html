@@ -8,6 +8,42 @@
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        
+        <div id="hud">
+            <div id="xp-container">
+                <div id="xp-bar"></div>
+            </div>
+            <div class="top-info">
+                <span id="level-display">Lv. 1</span>
+                <span id="score-display">Score: 0</span>
+            </div>
+        </div>
+
+        <div id="hp-container">
+            <div id="hp-bar"></div>
+            <div id="hp-text">100 / 100</div>
+        </div>
+
+        <div id="start-screen" class="screen active">
+            <h1>SURVIVOR</h1>
+            <p>Touch & Drag to Move</p>
+            <button id="start-btn" class="btn">GAME START</button>
+        </div>
+
+        <div id="levelup-screen" class="screen">
+            <h2>LEVEL UP!</h2>
+            <div id="upgrade-container">
+                </div>
+        </div>
+
+        <div id="gameover-screen" class="screen">
+            <h1>YOU DIED</h1>
+            <p id="final-score">Score: 0</p>
+            <button id="restart-btn" class="btn">TRY AGAIN</button>
+        </div>
+    </div>
     
     <script src="game.js"></script>
 </body>

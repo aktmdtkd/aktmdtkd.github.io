@@ -1,18 +1,55 @@
-/* 기본 초기화 */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); /* 레트로 폰트 */
 
-body, html {
-    width: 100%;
-    height: 100%;
-    overflow: hidden; /* 스크롤 방지 */
-    background-color: #000; /* 배경색 검정 */
-    touch-action: none; /* 모바일 브라우저의 기본 터치 동작(스크롤 등) 무시 */
-}
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Segoe UI', sans-serif; }
 
-canvas {
-    display: block;
+/* 캔버스는 뒤에 깔림 */
+canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+
+/* UI 레이어는 앞에 뜸 */
+#ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; /* UI가 있어도 게임 조작 가능하게 */ }
+
+/* HUD (상단) */
+#hud { width: 100%; padding: 10px; position: absolute; top: 0; }
+#xp-container { width: 100%; height: 10px; background: #333; border: 1px solid #555; border-radius: 5px; overflow: hidden; }
+#xp-bar { width: 0%; height: 100%; background: #00bfff; transition: width 0.2s; }
+.top-info { display: flex; justify-content: space-between; color: white; font-weight: bold; margin-top: 5px; text-shadow: 1px 1px 2px black; font-size: 18px; }
+
+/* HP Bar (하단 중앙) */
+#hp-container { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 200px; height: 20px; background: #330000; border: 2px solid #550000; border-radius: 10px; overflow: hidden; }
+#hp-bar { width: 100%; height: 100%; background: #ff0000; transition: width 0.1s; }
+#hp-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; text-align: center; color: white; font-size: 12px; line-height: 20px; font-weight: bold; }
+
+/* 팝업 화면 공통 (Start, LevelUp, GameOver) */
+.screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: none; /* 기본 숨김 */
+    flex-direction: column; justify-content: center; align-items: center;
+    color: white; pointer-events: auto; /* 버튼 클릭 가능하게 복구 */
 }
+.screen.active { display: flex; }
+
+h1 { font-size: 40px; color: #ff4444; margin-bottom: 20px; text-shadow: 2px 2px 0px #000; }
+h2 { color: #ffd700; margin-bottom: 20px; }
+p { font-size: 18px; color: #ccc; margin-bottom: 30px; }
+
+/* 버튼 스타일 */
+.btn {
+    padding: 15px 40px; font-size: 20px; font-weight: bold; color: white;
+    background: linear-gradient(to bottom, #ff6666, #cc0000);
+    border: none; border-radius: 5px; cursor: pointer;
+    box-shadow: 0 4px #990000; transition: transform 0.1s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 0 #990000; }
+
+/* 레벨업 카드 스타일 */
+#upgrade-container { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; width: 90%; }
+.upgrade-card {
+    background: #333; border: 2px solid #fff; border-radius: 8px;
+    width: 140px; padding: 15px; text-align: center; cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+}
+.upgrade-card:hover { transform: scale(1.05); background: #444; border-color: #ffd700; }
+.upgrade-title { color: #ffd700; font-weight: bold; margin-bottom: 10px; display: block; }
+.upgrade-desc { color: #ddd; font-size: 12px; display: block; }
