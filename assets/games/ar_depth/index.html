@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR Visual SLAM Scanner</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        #info {
+            position: absolute; top: 10px; width: 100%; text-align: center; z-index: 100;
+            color: #00ff00; font-weight: bold; text-shadow: 1px 1px 2px black; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">공간을 스캔하여 점을 찍습니다...</div>
+
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
+
+        let container;
+        let camera, scene, renderer;
+        let controller;
+        
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
+
+        // 스캔된 점들을 저장할 InstancedMesh (성능 최적화를 위해 점 2000개까지 재사용)
+        const MAX_POINTS = 2000;
+        let mesh; 
+        let count = 0; // 현재 찍힌 점의 개수
+        const dummy = new THREE.Object3D();
+
+        init();
+        animate();
+
+        function init() {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            // 조명
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+
+            // --- 1. 렌더러 설정 ---
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true; // WebXR 활성화
+            container.appendChild(renderer.domElement);
+
+            // --- 2. AR 버튼 설정 (Depth Sensing & Hit Test 요청) ---
+            // 'hit-test': 바닥/벽 인식 필수 기능
+            // 'dom-overlay': 2D UI 띄우기 위함
+            const button = ARButton.createButton(renderer, {
+                requiredFeatures: ['hit-test'],
+                optionalFeatures: ['dom-overlay'], 
+                domOverlay: { root: document.body }
+            });
+            document.body.appendChild(button);
+
+            // --- 3. 점군(Point Cloud) 생성용 메쉬 설정 ---
+            // 작은 육면체(또는 구)를 점으로 사용
+            const geometry = new THREE.IcosahedronGeometry(0.01, 1); // 반지름 1cm 점
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8 });
+            
+            // InstancedMesh: 점 수천 개를 한 번에 그림 (렉 방지)
+            mesh = new THREE.InstancedMesh(geometry, material, MAX_POINTS);
+            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 위치가 계속 변하므로 Dynamic 설정
+            scene.add(mesh);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        // 스캔 주기 조절용 (매 프레임 찍으면 너무 많으니까)
+        let lastScanTime = 0;
+
+        function render(timestamp, frame) {
+            if (frame) {
+                // AR 세션 정보
+                const referenceSpace = renderer.xr.getReferenceSpace();
+                const session = renderer.xr.getSession();
+
+                // Hit Test 소스 요청 (최초 1회)
+                if (hitTestSourceRequested === false) {
+                    session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                        session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                            hitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', function () {
+                        hitTestSourceRequested = false;
+                        hitTestSource = null;
+                    });
+                    hitTestSourceRequested = true;
+                }
+
+                // --- 4. 스캔 로직 (SLAM 시각화) ---
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+                    // 바닥이나 벽을 인식했고, 점 개수가 최대치 미만이며, 0.05초마다 실행
+                    if (hitTestResults.length > 0 && count < MAX_POINTS && timestamp - lastScanTime > 50) {
+                        const hit = hitTestResults[0];
+                        const pose = hit.getPose(referenceSpace);
+
+                        // 가상의 점 위치 계산
+                        dummy.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+                        dummy.updateMatrix();
+
+                        // InstancedMesh에 점 추가
+                        mesh.setMatrixAt(count++, dummy.matrix);
+                        mesh.instanceMatrix.needsUpdate = true; // 중요: GPU에 업데이트 알림
+
+                        lastScanTime = timestamp;
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
