@@ -3,43 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR SLAM & 3D Viewer</title>
+    <title>WebXR Scanner</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #222; font-family: sans-serif; color: white; }
         #info {
-            position: absolute; top: 10px; width: 100%; text-align: center; z-index: 100;
-            color: #00ff00; font-weight: bold; text-shadow: 1px 1px 2px black; pointer-events: none;
+            position: absolute; top: 20px; width: 100%; text-align: center; z-index: 100;
+            pointer-events: none; font-weight: bold; text-shadow: 1px 1px 2px black;
         }
-        #viewer-hint {
-            display: none; position: absolute; bottom: 30px; width: 100%; text-align: center;
-            color: white; background: rgba(0,0,0,0.5); padding: 10px;
+        #error-msg {
+            color: #ff4444; margin-top: 10px; font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <div id="info">START AR을 눌러 공간을 스캔하세요.<br>종료하면 3D 지도가 됩니다.</div>
-    <div id="viewer-hint">👆 터치하여 회전 / ✌️ 두 손가락으로 확대</div>
+    <div id="info">
+        상태: 대기 중<br>
+        <span id="error-msg"></span>
+    </div>
 
     <script type="module">
         import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
         import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
-        // 3D 뷰어 컨트롤을 위해 OrbitControls 추가
         import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-        let container;
-        let camera, scene, renderer;
-        let controller;
-        let controls; // 뷰어 모드용 컨트롤러
-
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-
-        const MAX_POINTS = 3000; // 점 개수 늘림
-        let mesh; 
-        let count = 0;
+        let container, camera, scene, renderer;
+        let controller, controls;
+        let hitTestSource = null, hitTestSourceRequested = false;
+        let mesh, count = 0, isARMode = false;
+        const MAX_POINTS = 3000;
         const dummy = new THREE.Object3D();
-
-        let isARMode = false; // 현재 AR 모드인지 확인하는 플래그
 
         init();
         animate();
@@ -49,8 +41,6 @@
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
-
-            // 초기 카메라는 AR용 세팅 (하지만 뷰어 모드에서도 쓰임)
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
@@ -60,63 +50,59 @@
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true; 
+            renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // AR 버튼 생성
-            const button = ARButton.createButton(renderer, {
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'], 
-                domOverlay: { root: document.body }
+            // === AR 지원 여부 확인 및 버튼 생성 ===
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                    if (supported) {
+                        const button = ARButton.createButton(renderer, {
+                            requiredFeatures: ['hit-test'],
+                            optionalFeatures: ['dom-overlay'],
+                            domOverlay: { root: document.body }
+                        });
+                        document.body.appendChild(button);
+                        document.getElementById('info').innerHTML += "<br>AR 준비 완료";
+                    } else {
+                        document.getElementById('error-msg').innerText = "이 기기는 AR을 지원하지 않습니다.";
+                    }
+                }).catch((err) => {
+                    document.getElementById('error-msg').innerText = "AR 체크 오류: " + err.message;
+                });
+            } else {
+                document.getElementById('error-msg').innerText = "WebXR을 지원하지 않는 브라우저입니다 (HTTPS 확인).";
+            }
+
+            // 이벤트 리스너
+            renderer.xr.addEventListener('sessionstart', () => {
+                isARMode = true;
+                scene.background = null;
+                document.getElementById('info').innerText = "스캔 중... (이동하세요)";
             });
-            document.body.appendChild(button);
 
-            // ★ 중요: AR 세션 시작/종료 감지
-            // ARButton은 클릭 시 세션을 만드는데, 우리는 렌더러의 이벤트를 통해 상태를 감지합니다.
-            renderer.xr.addEventListener('sessionstart', onSessionStart);
-            renderer.xr.addEventListener('sessionend', onSessionEnd);
+            renderer.xr.addEventListener('sessionend', () => {
+                isARMode = false;
+                scene.background = new THREE.Color(0x222222);
+                document.getElementById('info').innerText = "3D 뷰어 모드";
+                camera.position.set(0, 1.5, 2);
+                camera.lookAt(0, 0, 0);
+                if (!controls) {
+                    controls = new OrbitControls(camera, renderer.domElement);
+                    controls.target.set(0, 0, -1);
+                    controls.update();
+                }
+                renderer.xr.enabled = false;
+            });
 
-            // 점군(Point Cloud) 생성
-            const geometry = new THREE.IcosahedronGeometry(0.015, 1); // 점 크기 약간 키움
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); 
+            // 점군 초기화
+            const geometry = new THREE.IcosahedronGeometry(0.015, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             mesh = new THREE.InstancedMesh(geometry, material, MAX_POINTS);
             mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             scene.add(mesh);
 
             window.addEventListener('resize', onWindowResize);
-        }
-
-        // AR 시작될 때 호출
-        function onSessionStart() {
-            isARMode = true;
-            document.getElementById('info').innerText = "바닥과 벽을 비추며 이동하세요.";
-            document.getElementById('viewer-hint').style.display = 'none';
-            scene.background = null; // 배경 투명 (카메라 보임)
-        }
-
-        // ★ AR 종료될 때 호출 (뷰어 모드로 전환)
-        function onSessionEnd() {
-            isARMode = false;
-            document.getElementById('info').innerText = "3D Map Viewer Mode";
-            document.getElementById('viewer-hint').style.display = 'block';
-
-            // 1. 배경을 검은색으로 변경 (더 이상 카메라 안 보임)
-            scene.background = new THREE.Color(0x222222);
-
-            // 2. 카메라 위치 재설정 (전체 맵을 볼 수 있게 뒤로 뺌)
-            // AR 좌표계에서 0,0,0은 '앱을 켠 위치'입니다.
-            camera.position.set(0, 1.5, 2); 
-            camera.lookAt(0, 0, 0);
-
-            // 3. OrbitControls 활성화 (터치로 돌려보기)
-            if (!controls) {
-                controls = new OrbitControls(camera, renderer.domElement);
-                controls.target.set(0, 0, -1); // 시선을 약간 앞쪽으로
-                controls.update();
-            }
-            
-            // 4. WebXR 끄기 (일반 렌더링 루프로 돌아가기 위해)
-            renderer.xr.enabled = false;
         }
 
         function onWindowResize() {
@@ -132,7 +118,6 @@
         let lastScanTime = 0;
 
         function render(timestamp, frame) {
-            // === AR 모드일 때 (데이터 수집) ===
             if (isARMode && frame) {
                 const referenceSpace = renderer.xr.getReferenceSpace();
                 const session = renderer.xr.getSession();
@@ -152,25 +137,18 @@
 
                 if (hitTestSource) {
                     const hitTestResults = frame.getHitTestResults(hitTestSource);
-                    // 스캔 속도 조절 (30ms 마다)
-                    if (hitTestResults.length > 0 && count < MAX_POINTS && timestamp - lastScanTime > 30) {
+                    if (hitTestResults.length > 0 && count < MAX_POINTS && timestamp - lastScanTime > 50) {
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(referenceSpace);
-
                         dummy.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
                         dummy.updateMatrix();
-
                         mesh.setMatrixAt(count++, dummy.matrix);
-                        mesh.instanceMatrix.needsUpdate = true; 
+                        mesh.instanceMatrix.needsUpdate = true;
                         lastScanTime = timestamp;
                     }
                 }
                 renderer.render(scene, camera);
-            } 
-            
-            // === 뷰어 모드일 때 (데이터 확인) ===
-            else if (!isARMode) {
-                // OrbitControls 업데이트 필요
+            } else if (!isARMode) {
                 if (controls) controls.update();
                 renderer.render(scene, camera);
             }
