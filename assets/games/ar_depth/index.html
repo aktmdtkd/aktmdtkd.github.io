@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR Scanner</title>
+    <title>WebXR PointCloud Visualizer</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #222; font-family: sans-serif; color: white; }
-        #info {
-            position: absolute; top: 20px; width: 100%; text-align: center; z-index: 100;
-            pointer-events: none; font-weight: bold; text-shadow: 1px 1px 2px black;
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Courier New', Courier, monospace; color: #00ff00; }
+        #overlay {
+            position: absolute; top: 10px; left: 10px; pointer-events: none; z-index: 100;
+            background: rgba(0, 0, 0, 0.7); padding: 10px; border: 1px solid #444; border-radius: 5px;
         }
-        #error-msg {
-            color: #ff4444; margin-top: 10px; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px;
-        }
+        h3 { margin: 0 0 5px 0; font-size: 16px; color: white; }
+        p { margin: 2px 0; font-size: 12px; color: #aaa; }
+        #status { color: #00ff00; font-weight: bold; }
+        #error-msg { color: #ff5555; background: rgba(50,0,0,0.8); display: none; padding: 5px; margin-top: 5px;}
     </style>
 
     <script type="importmap">
@@ -25,30 +26,42 @@
     </script>
 </head>
 <body>
-    <div id="info">
-        상태: 초기화 중...<br>
-        <span id="error-msg"></span>
+    <div id="overlay">
+        <h3>WebXR PointCloud Scanner</h3>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Points: <span id="point-count">0</span></p>
+        <div id="error-msg"></div>
     </div>
 
     <script type="module">
-        // 이제 URL 대신 'three'라는 짧은 이름을 쓸 수 있습니다.
         import * as THREE from 'three';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- 여기서부터는 기존 로직과 동일 ---
         let container, camera, scene, renderer;
-        let controller, controls;
+        let controls;
         let hitTestSource = null, hitTestSourceRequested = false;
         let mesh, count = 0, isARMode = false;
-        const MAX_POINTS = 3000;
+        
+        // RViz 느낌을 위한 설정
+        const MAX_POINTS = 10000; // 점 개수 대폭 증가
         const dummy = new THREE.Object3D();
+        const color = new THREE.Color();
+        
+        // 시각화 도구들
+        let gridHelper, axesHelper;
 
         try {
             init();
             animate();
         } catch(e) {
-            document.getElementById('error-msg').innerText = "초기화 에러: " + e.message;
+            showError(e.message);
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.style.display = 'block';
+            el.innerText = "Error: " + msg;
         }
 
         function init() {
@@ -56,11 +69,16 @@
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            
+            // 뷰어용 카메라 (초기값)
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
 
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
-            scene.add(light);
+            // 조명 (데이터가 잘 보이게 앰비언트 라이트 강화)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(0, 10, 0);
+            scene.add(dirLight);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -68,7 +86,7 @@
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // AR 지원 확인
+            // === AR 버튼 ===
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
                     if (supported) {
@@ -78,46 +96,120 @@
                             domOverlay: { root: document.body }
                         });
                         document.body.appendChild(button);
-                        document.getElementById('info').innerHTML = "AR 준비 완료<br>(START AR 클릭)";
+                        document.getElementById('status').innerText = "Ready (Click Start AR)";
                     } else {
-                        document.getElementById('error-msg').innerText = "이 기기는 AR을 지원하지 않습니다.";
+                        document.getElementById('status').innerText = "AR Not Supported";
+                        showError("Device check failed");
                     }
-                }).catch((err) => {
-                    document.getElementById('error-msg').innerText = "AR 체크 실패: " + err.message;
                 });
             } else {
-                document.getElementById('error-msg').innerText = "WebXR 미지원 (HTTPS 필수)";
+                showError("WebXR API missing (HTTPS?)");
             }
 
-            // 이벤트 리스너
-            renderer.xr.addEventListener('sessionstart', () => {
-                isARMode = true;
-                scene.background = null;
-                document.getElementById('info').innerText = "스캔 중... (이동하세요)";
-            });
+            // === 이벤트 리스너 ===
+            renderer.xr.addEventListener('sessionstart', onSessionStart);
+            renderer.xr.addEventListener('sessionend', onSessionEnd);
 
-            renderer.xr.addEventListener('sessionend', () => {
-                isARMode = false;
-                scene.background = new THREE.Color(0x222222);
-                document.getElementById('info').innerText = "3D 뷰어 모드 (터치로 회전)";
-                camera.position.set(0, 1.5, 2);
-                camera.lookAt(0, 0, 0);
-                if (!controls) {
-                    controls = new OrbitControls(camera, renderer.domElement);
-                    controls.target.set(0, 0, -1);
-                    controls.update();
-                }
-                renderer.xr.enabled = false;
+            // === 점군(Point Cloud) 생성 ===
+            // RViz 스타일: 점을 아주 작고 선명하게
+            const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01); // 1cm 큐브
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, 
+                roughness: 0.5, 
+                metalness: 0.5 
             });
-
-            // 점군 생성
-            const geometry = new THREE.IcosahedronGeometry(0.015, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            
+            // InstancedMesh로 성능 확보
             mesh = new THREE.InstancedMesh(geometry, material, MAX_POINTS);
             mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             scene.add(mesh);
 
             window.addEventListener('resize', onWindowResize);
+        }
+
+        function onSessionStart() {
+            isARMode = true;
+            count = 0; // 초기화
+            scene.background = null;
+            
+            // 기존 헬퍼들 제거 (AR 화면 가리지 않게)
+            if(gridHelper) scene.remove(gridHelper);
+            if(axesHelper) scene.remove(axesHelper);
+
+            document.getElementById('status').innerText = "Scanning... (Move around)";
+        }
+
+        function onSessionEnd() {
+            isARMode = false;
+            renderer.xr.enabled = false;
+            
+            // 1. 배경을 RViz 스타일 다크 그레이로
+            scene.background = new THREE.Color(0x303030);
+            document.getElementById('status').innerText = "Visualization Mode";
+
+            // 2. 컨트롤러 활성화
+            if (!controls) {
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+            }
+
+            // 3. 데이터 중심 찾기 및 시각화 구성
+            setupVisualization();
+        }
+
+        function setupVisualization() {
+            // 점들의 중심과 범위 계산
+            if (count === 0) {
+                // 데이터 없으면 기본 그리드만
+                addGridAndAxes(new THREE.Vector3(0, -1, 0));
+                return;
+            }
+
+            const box = new THREE.Box3();
+            const tempMatrix = new THREE.Matrix4();
+            const tempPos = new THREE.Vector3();
+
+            for (let i = 0; i < count; i++) {
+                mesh.getMatrixAt(i, tempMatrix);
+                tempPos.setFromMatrixPosition(tempMatrix);
+                box.expandByPoint(tempPos);
+            }
+
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            
+            // 바닥 높이(min Y) 찾기 -> 그리드를 바닥에 깔기 위해
+            const minY = box.min.y;
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.z) + 1; // 그리드 크기 결정
+
+            // 4. RViz 스타일 그리드 & 축 추가
+            addGridAndAxes(new THREE.Vector3(center.x, minY, center.z), maxDim);
+
+            // 5. 카메라 뷰 설정 (Isometric View 느낌으로)
+            const camDist = Math.max(size.x, size.y, size.z) * 1.5;
+            camera.position.set(center.x + camDist, center.y + camDist, center.z + camDist);
+            camera.lookAt(center);
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        function addGridAndAxes(position, size = 5) {
+            if(gridHelper) scene.remove(gridHelper);
+            if(axesHelper) scene.remove(axesHelper);
+
+            // 격자 (Grid)
+            // RViz 기본 스타일: 짙은 회색 선
+            gridHelper = new THREE.GridHelper(size * 2, 20, 0x888888, 0x444444);
+            gridHelper.position.set(position.x, position.y, position.z); // 바닥 높이에 맞춤
+            scene.add(gridHelper);
+
+            // 축 (Axes) - RGB
+            axesHelper = new THREE.AxesHelper(size / 4); // 그리드보다 작게
+            axesHelper.position.set(position.x, position.y, position.z);
+            scene.add(axesHelper);
         }
 
         function onWindowResize() {
@@ -133,6 +225,7 @@
         let lastScanTime = 0;
 
         function render(timestamp, frame) {
+            // === AR Scanning ===
             if (isARMode && frame) {
                 const referenceSpace = renderer.xr.getReferenceSpace();
                 const session = renderer.xr.getSession();
@@ -143,27 +236,44 @@
                             hitTestSource = source;
                         });
                     });
-                    session.addEventListener('end', () => {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
+                    session.addEventListener('end', () => { hitTestSourceRequested = false; hitTestSource = null; });
                     hitTestSourceRequested = true;
                 }
 
                 if (hitTestSource) {
                     const hitTestResults = frame.getHitTestResults(hitTestSource);
-                    if (hitTestResults.length > 0 && count < MAX_POINTS && timestamp - lastScanTime > 50) {
+                    // 스캔 속도: 30ms (빠르게)
+                    if (hitTestResults.length > 0 && count < MAX_POINTS && timestamp - lastScanTime > 30) {
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(referenceSpace);
-                        dummy.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+
+                        const px = pose.transform.position.x;
+                        const py = pose.transform.position.y;
+                        const pz = pose.transform.position.z;
+
+                        dummy.position.set(px, py, pz);
                         dummy.updateMatrix();
-                        mesh.setMatrixAt(count++, dummy.matrix);
+                        mesh.setMatrixAt(count, dummy.matrix);
+
+                        // ★ 핵심: 높이에 따른 색상 코딩 (Height Map)
+                        // 바닥(낮음) = 파랑/보라, 위(높음) = 빨강/노랑
+                        // 대략 -1m ~ 1m 범위를 색상으로 매핑
+                        const h = (py + 1.0) / 2.0; // 0~1 사이 값으로 정규화
+                        color.setHSL(h, 1.0, 0.5); // 무지개색
+                        mesh.setColorAt(count, color);
+
+                        count++;
                         mesh.instanceMatrix.needsUpdate = true;
+                        mesh.instanceColor.needsUpdate = true; // 색상 업데이트 필수
+                        
+                        document.getElementById('point-count').innerText = count;
                         lastScanTime = timestamp;
                     }
                 }
                 renderer.render(scene, camera);
-            } else if (!isARMode) {
+            } 
+            // === 3D Viewer Mode ===
+            else if (!isARMode) {
                 if (controls) controls.update();
                 renderer.render(scene, camera);
             }
