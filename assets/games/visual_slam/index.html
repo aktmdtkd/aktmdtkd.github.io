@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Fast V-SLAM Visualizer</title>
+    <title>Robust V-SLAM (Resolution Fix)</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
@@ -24,13 +24,14 @@
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
         }
         #btn-start:disabled { background: #555; cursor: wait; }
-
+        
+        /* 캔버스 사이즈는 CSS로 100% 채우되, 비율은 JS로 제어 */
         #video-container { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; 
-            background: black;
+            background: black; display: flex; justify-content: center; align-items: center;
         }
         video { display: none; }
-        #canvasOutput { width: 100%; height: 100%; object-fit: contain; }
+        #canvasOutput { max-width: 100%; max-height: 100%; }
 
         #threejs-container { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
@@ -56,16 +57,15 @@
             }
         }
     </script>
-    
     <script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.3/dist/opencv.js" onload="onOpenCvLoaded()" onerror="onOpenCvError()" type="text/javascript"></script>
 </head>
 <body>
-    <div id="console-log">System Initializing...<br>Downloading OpenCV Engine (Fast CDN)...<br></div>
+    <div id="console-log">System Initializing...<br>Downloading OpenCV Engine (CDN)...<br></div>
 
     <div id="start-overlay">
         <h2 style="margin-bottom: 20px;">V-SLAM Core</h2>
-        <button id="btn-start" disabled>다운로드 중... (0%)</button>
-        <p style="color: #aaa; margin-top: 10px;" id="loading-msg">고속 서버에서 엔진을 받아오는 중입니다.</p>
+        <button id="btn-start" disabled>엔진 로딩 중...</button>
+        <p style="color: #aaa; margin-top: 10px;" id="loading-msg">잠시만 기다려주세요.</p>
     </div>
 
     <div id="video-container">
@@ -96,50 +96,40 @@
         let finalFeatures = [];
         let scene, camera, renderer, controls, pointCloud;
 
-        // ★ 로딩 실패 감지 (타임아웃)
         const loadingTimer = setTimeout(() => {
             if(document.getElementById('btn-start').disabled) {
-                log("❌ 로딩 시간이 너무 깁니다. 새로고침 해보세요.");
-                document.getElementById('loading-msg').innerText = "다운로드 실패 또는 네트워크 지연.";
+                log("❌ 로딩 타임아웃. 새로고침 해주세요.");
+                document.getElementById('loading-msg').innerText = "네트워크 지연.";
                 document.getElementById('loading-msg').style.color = "red";
             }
-        }, 15000); // 15초 타임아웃
+        }, 20000);
 
-        // 1. OpenCV 로딩 에러 처리
         window.onOpenCvError = function() {
             clearTimeout(loadingTimer);
-            log("❌ OpenCV 파일 다운로드 실패!");
-            document.getElementById('loading-msg').innerText = "CDN 접속 불가. 인터넷 연결을 확인하세요.";
-            document.getElementById('loading-msg').style.color = "red";
+            log("❌ OpenCV 다운로드 실패.");
         }
 
-        // 2. OpenCV 로딩 완료
         window.onOpenCvLoaded = function() {
             clearTimeout(loadingTimer);
-            log("✅ OpenCV 엔진 로드 완료 (Fast CDN)!");
+            log("✅ OpenCV 로드 완료.");
             
-            // cv 객체가 초기화될 때까지 아주 조금 더 대기
-            cv['onRuntimeInitialized'] = () => {
-                log("🔧 OpenCV 런타임 초기화 완료.");
+            // 런타임 초기화 대기
+            if (cv.getBuildInformation) {
                 enableStartButton();
-            };
-            
-            // 만약 onRuntimeInitialized가 안 불리면 강제 활성화 (TechStark 버전 특성)
-            setTimeout(enableStartButton, 1000);
+            } else {
+                cv['onRuntimeInitialized'] = enableStartButton;
+            }
         };
 
         function enableStartButton() {
             const btn = document.getElementById('btn-start');
-            if (!btn.disabled) return;
-            
-            btn.innerText = "📷 카메라 시작 (Start Camera)";
+            btn.innerText = "📷 카메라 시작";
             btn.disabled = false;
             btn.style.backgroundColor = "#2ed573";
             btn.onclick = startCameraPipeline;
             document.getElementById('loading-msg').innerText = "준비 완료.";
         }
 
-        // 3. 카메라 시작
         async function startCameraPipeline() {
             document.getElementById('start-overlay').style.display = 'none'; 
             video = document.getElementById('videoInput');
@@ -151,7 +141,7 @@
                     audio: false
                 });
 
-                log("카메라 연결됨.");
+                log("카메라 스트림 획득.");
                 video.srcObject = stream;
                 video.play();
 
@@ -159,54 +149,79 @@
 
             } catch (err) {
                 log("❌ 카메라 에러: " + err.message);
-                alert("카메라 접속 불가. HTTPS 필수.");
+                alert("카메라 권한을 확인하세요.");
             }
         }
 
         function waitForVideoSize() {
-            const width = video.videoWidth;
-            const height = video.videoHeight;
+            const w = video.videoWidth;
+            const h = video.videoHeight;
 
-            if (width && height) {
-                log(`📏 해상도: ${width}x${height}`);
-                canvas.width = width;
-                canvas.height = height;
+            if (w && h) {
+                log(`📏 감지된 해상도: ${w}x${h}`);
+                // 캔버스 크기를 비디오와 동일하게 맞춤 (비율 왜곡 방지)
+                canvas.width = w;
+                canvas.height = h;
+                
                 document.getElementById('ui-controls').style.display = 'block';
-                startOpenCVProcessing(width, height);
+                // ★ 여기서 w, h를 정확하게 넘김
+                startOpenCVProcessing(w, h);
             } else {
                 setTimeout(waitForVideoSize, 100);
             }
         }
 
         function startOpenCVProcessing(width, height) {
-            log("메모리 할당 중...");
+            log(`메모리 할당 중... (W:${width}, H:${height})`);
             try {
+                // 이전 메모리 정리 (재시작 시)
+                if(srcMat) srcMat.delete();
+                if(grayMat) grayMat.delete();
+                if(oldGrayMat) oldGrayMat.delete();
+                if(p0) p0.delete();
+                if(p1) p1.delete();
+                if(st) st.delete();
+                if(err) err.delete();
+                if(cap) delete cap; // JS 객체는 delete
+
                 cap = new cv.VideoCapture(video);
+                
+                // ★ 핵심 수정: 순서를 정확히 지켜야 함
+                // cv.Mat(rows, cols, type) -> (height, width, type)
                 srcMat = new cv.Mat(height, width, cv.CV_8UC4);
                 grayMat = new cv.Mat(height, width, cv.CV_8UC1);
                 oldGrayMat = new cv.Mat(height, width, cv.CV_8UC1);
                 
-                p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
+                p0 = new cv.Mat(); 
+                p1 = new cv.Mat(); 
+                st = new cv.Mat(); 
+                err = new cv.Mat();
 
+                // 첫 프레임 읽기
                 cap.read(srcMat);
                 
-                if (srcMat.empty()) {
-                    setTimeout(() => startOpenCVProcessing(width, height), 500);
-                    return;
+                // 사이즈가 안 맞으면 즉시 중단 (Bad size 방지)
+                if (srcMat.cols !== width || srcMat.rows !== height) {
+                    log(`⚠️ 크기 불일치! Mat:${srcMat.cols}x${srcMat.rows} vs Video:${width}x${height}`);
+                    throw new Error("Dimension Mismatch");
                 }
 
                 cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
 
+                // 특징점 추출
                 let none = new cv.Mat();
-                cv.goodFeaturesToTrack(oldGrayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
+                // 파라미터: (이미지, 결과점, 점개수, 퀄리티, 최소거리)
+                cv.goodFeaturesToTrack(oldGrayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
                 none.delete();
 
-                log("🚀 추적 시작!");
+                log(`🚀 엔진 가동 성공! 초기 특징점: ${p0.rows}개`);
                 isCVRunning = true;
                 requestAnimationFrame(processVideoFrame);
 
             } catch (e) {
-                log("❌ 초기화 에러: " + e);
+                log("❌ 초기화 에러 (상세): " + e);
+                // 에러 발생 시 1초 뒤 재시도
+                setTimeout(() => startOpenCVProcessing(width, height), 1000);
             }
         }
 
@@ -215,13 +230,20 @@
 
             try {
                 cap.read(srcMat);
-                if (srcMat.cols !== video.videoWidth) {
-                    isCVRunning = false; return;
+                
+                // 런타임 크기 체크
+                if (srcMat.cols !== video.videoWidth || srcMat.rows !== video.videoHeight) {
+                    log("⚠️ 해상도 변경 감지됨. 재설정 필요.");
+                    isCVRunning = false;
+                    // 해상도 다시 읽어서 재시작
+                    waitForVideoSize(); 
+                    return;
                 }
 
                 cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
 
                 if (p0.rows > 0) {
+                    // Optical Flow 계산
                     cv.calcOpticalFlowPyrLK(oldGrayMat, grayMat, p0, p1, st, err);
 
                     let goodPoints = [];
@@ -232,8 +254,10 @@
                             let newX = p1.data32F[i * 2];
                             let newY = p1.data32F[i * 2 + 1];
 
+                            // 점 그리기
                             cv.circle(srcMat, new cv.Point(newX, newY), 5, [0, 255, 0, 255], -1);
                             
+                            // 3D용 데이터 저장
                             finalFeatures.push({
                                 u: newX / srcMat.cols,
                                 v: newY / srcMat.rows
@@ -245,35 +269,46 @@
 
                     cv.imshow('canvasOutput', srcMat);
 
+                    // 점이 너무 적으면 다시 찾기
                     if (goodPoints.length < 30) {
                         let none = new cv.Mat();
-                        cv.goodFeaturesToTrack(grayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
+                        cv.goodFeaturesToTrack(grayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
                         none.delete();
                     } else {
+                        // 현재 점을 다음 프레임의 과거 점으로 복사
                         p1.copyTo(p0);
                     }
+                } else {
+                    // 점을 다 잃어버렸으면 재추출
+                     let none = new cv.Mat();
+                     cv.goodFeaturesToTrack(grayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
+                     none.delete();
                 }
+                
                 grayMat.copyTo(oldGrayMat);
                 requestAnimationFrame(processVideoFrame);
 
             } catch (e) {
-                log("Runtime Error: " + e);
+                log("런타임 에러: " + e);
                 isCVRunning = false;
             }
         }
 
         document.getElementById('btn-visualize').addEventListener('click', () => {
-            log("🛑 3D 전환.");
+            log("🛑 3D 변환 시작.");
             isCVRunning = false;
+            
+            // 비디오 정지 및 숨김
             if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-
             document.getElementById('video-container').style.display = 'none';
             document.getElementById('ui-controls').style.display = 'none';
+            
+            // 3D 보이기
             document.getElementById('threejs-container').style.display = 'block';
-
             initThreeJS();
         });
 
+        // --- 3D 시각화 파트 ---
         function initThreeJS() {
             const container = document.getElementById('threejs-container');
             scene = new THREE.Scene();
@@ -304,7 +339,7 @@
 
         function createPointCloud() {
             if (finalFeatures.length === 0) {
-                log("⚠️ 특징점 없음.");
+                log("⚠️ 변환할 특징점이 없습니다.");
                 return;
             }
 
@@ -315,8 +350,9 @@
             const dummy = new THREE.Object3D();
             const color = new THREE.Color();
             
-            const SCALE_X = 5.0;
-            const SCALE_Y = SCALE_X * (3/4); 
+            // 세로 모드 대응 스케일
+            const SCALE_X = 5.0; 
+            const SCALE_Y = SCALE_X * (window.innerHeight / window.innerWidth); 
 
             for(let i=0; i<finalFeatures.length; i++) {
                 const f = finalFeatures[i];
