@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Core (Progress Bar)</title>
+    <title>Official V-SLAM (Status Monitor)</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
@@ -16,26 +16,25 @@
 
         #start-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 800; /* 배경을 좀 더 어둡게 */
+            background: rgba(0,0,0,0.9); z-index: 800;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
         
-        /* 로딩바 디자인 */
-        #progress-container {
-            width: 80%; max-width: 300px; height: 20px;
-            background: #333; border-radius: 10px; overflow: hidden;
-            margin-bottom: 20px; border: 1px solid #555;
+        /* 로딩 애니메이션 (퍼센트 대신 무한 회전) */
+        .spinner {
+            width: 50px; height: 50px;
+            border: 5px solid #333; border-top: 5px solid #0088ff; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-        #progress-bar {
-            width: 0%; height: 100%; background: #0088ff;
-            transition: width 0.2s;
-        }
-        #loading-text { font-size: 16px; color: #fff; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #loading-text { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px; text-align: center;}
+        #sub-text { font-size: 14px; color: #aaa; text-align: center; max-width: 80%; }
 
         #btn-start {
             padding: 20px 40px; font-size: 20px; font-weight: bold; 
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
-            display: none; /* 로딩 전엔 숨김 */
+            display: none; box-shadow: 0 0 15px #0088ff;
         }
 
         #video-container { 
@@ -74,11 +73,12 @@
     <div id="console-log">System Initializing...<br></div>
 
     <div id="start-overlay">
-        <h2 style="margin-bottom: 20px;">V-SLAM Core</h2>
+        <h2 style="margin-bottom: 30px;">V-SLAM Core</h2>
         
-        <div id="loading-text">엔진 다운로드 준비 중...</div>
-        <div id="progress-container">
-            <div id="progress-bar"></div>
+        <div id="loading-area">
+            <div class="spinner"></div>
+            <div id="loading-text">서버 연결 중...</div>
+            <div id="sub-text">공식 서버(docs.opencv.org)에서<br>엔진을 받아오는 중입니다.</div>
         </div>
 
         <button id="btn-start">📷 카메라 시작</button>
@@ -95,101 +95,73 @@
 
     <div id="threejs-container"></div>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-        function log(msg) {
+    <script>
+        function updateLog(msg) {
             const el = document.getElementById('console-log');
             const time = new Date().toLocaleTimeString();
             el.innerHTML += `[${time}] ${msg}<br>`;
             el.scrollTop = el.scrollHeight;
         }
 
-        // === 1. OpenCV 수동 다운로드 및 퍼센트 표시 ===
-        const OPENCV_URL = 'https://docs.opencv.org/4.8.0/opencv.js';
-
-        function loadOpenCV() {
-            log(`다운로드 시작: ${OPENCV_URL}`);
+        // 전역 함수로 등록
+        window.onOpenCvSuccess = function() {
+            updateLog("✅ 파일 다운로드 완료 (1/2)");
+            document.getElementById('loading-text').innerText = "엔진 컴파일 & 초기화 중...";
+            document.getElementById('sub-text').innerText = "잠시 멈춘 것처럼 보일 수 있습니다 (CPU 연산 중)";
             
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', OPENCV_URL, true);
-            
-            // ★ 진행률 이벤트
-            xhr.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    const percent = Math.floor((event.loaded / event.total) * 100);
-                    document.getElementById('progress-bar').style.width = percent + '%';
-                    document.getElementById('loading-text').innerText = `다운로드 중... ${percent}%`;
-                } else {
-                    // 서버가 전체 파일 크기를 안 알려주는 경우
-                    document.getElementById('loading-text').innerText = `다운로드 중... ${(event.loaded / 1024 / 1024).toFixed(1)} MB`;
-                }
-            };
+            // 초기화 감시 시작
+            checkRuntime();
+        };
 
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    log("✅ 파일 다운로드 완료. 엔진 초기화 시작...");
-                    document.getElementById('progress-bar').style.width = '100%';
-                    document.getElementById('loading-text').innerText = "엔진 컴파일 중... (잠시 멈출 수 있음)";
-                    
-                    // 다운받은 텍스트를 스크립트로 변환하여 실행
-                    const script = document.createElement('script');
-                    script.text = xhr.responseText;
-                    document.body.appendChild(script);
-                    
-                    // OpenCV 초기화 대기
-                    checkOpenCVReady();
-                } else {
-                    log(`❌ 다운로드 실패 (Status ${xhr.status})`);
-                    fallbackLoading(); // 실패 시 태그 방식으로 재시도
-                }
-            };
+        window.onOpenCvFail = function() {
+            updateLog("❌ 다운로드 실패! 인터넷 연결 확인 필요.");
+            document.getElementById('loading-text').innerText = "연결 실패";
+            document.getElementById('loading-text').style.color = "red";
+            document.querySelector('.spinner').style.borderTopColor = "red";
+        };
 
-            xhr.onerror = () => {
-                log("❌ 네트워크 에러 (CORS 문제일 수 있음). 기본 방식으로 재시도합니다.");
-                fallbackLoading();
-            };
-
-            xhr.send();
-        }
-
-        // 다운로드 실패 시 백업 방법 (기존 방식)
-        function fallbackLoading() {
-            document.getElementById('loading-text').innerText = "기본 방식으로 재시도 중...";
-            const script = document.createElement('script');
-            script.src = OPENCV_URL;
-            script.onload = checkOpenCVReady;
-            document.head.appendChild(script);
-        }
-
-        // OpenCV가 로드되었는지 체크
-        function checkOpenCVReady() {
-            // cv 객체가 생겼는지 확인
-            const checkInterval = setInterval(() => {
+        function checkRuntime() {
+            // cv 객체가 생성되고, 함수들이 준비되었는지 0.5초마다 검사
+            let checks = 0;
+            const timer = setInterval(() => {
+                checks++;
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
-                    clearInterval(checkInterval);
-                    log("✅ OpenCV 엔진 준비 완료!");
-                    document.getElementById('loading-text').innerText = "준비 완료!";
-                    document.getElementById('progress-container').style.display = 'none';
-                    
-                    const btn = document.getElementById('btn-start');
-                    btn.style.display = 'block';
-                    btn.onclick = startCameraPipeline;
+                    clearInterval(timer);
+                    updateLog("✅ 엔진 초기화 완료 (2/2)");
+                    finishLoading();
+                } else if (checks > 120) { // 60초 타임아웃
+                    clearInterval(timer);
+                    updateLog("⚠️ 초기화 시간 초과. (기기가 느리거나 에러)");
+                    alert("엔진 시동에 실패했습니다. 새로고침 해주세요.");
+                } else {
+                    updateLog(`...초기화 대기 중 (${checks})`);
                 }
             }, 500);
         }
 
-        // 페이지 로드 시 바로 다운로드 시작
-        loadOpenCV();
+        function finishLoading() {
+            document.getElementById('loading-area').style.display = 'none';
+            const btn = document.getElementById('btn-start');
+            btn.style.display = 'block';
+            btn.onclick = startSystem;
+        }
+    </script>
+    
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvSuccess()" onerror="onOpenCvFail()"></script>
 
 
-        // === 2. V-SLAM 로직 (이전과 동일) ===
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
         let video, canvas, ctx, cap;
         let srcMat, grayMat, oldGrayMat, p0, p1, st, err;
         let isCVRunning = false;
         let finalFeatures = [];
         let scene, camera, renderer, controls, pointCloud;
+
+        // 전역 함수 연결
+        window.startSystem = startCameraPipeline;
 
         async function startCameraPipeline() {
             document.getElementById('start-overlay').style.display = 'none'; 
@@ -202,14 +174,14 @@
                     audio: false
                 });
 
-                log("카메라 스트림 획득.");
+                updateLog("카메라 연결 성공.");
                 video.srcObject = stream;
                 video.play();
                 waitForVideoSize();
 
             } catch (err) {
-                log("❌ 카메라 에러: " + err.message);
-                alert("카메라 권한을 확인하세요.");
+                updateLog("❌ 카메라 에러: " + err.message);
+                alert("카메라 권한이 필요합니다.");
             }
         }
 
@@ -217,7 +189,7 @@
             const w = video.videoWidth;
             const h = video.videoHeight;
             if (w && h) {
-                log(`📏 해상도: ${w}x${h}`);
+                updateLog(`📏 해상도 확정: ${w}x${h}`);
                 canvas.width = w; canvas.height = h;
                 document.getElementById('ui-controls').style.display = 'block';
                 startOpenCVProcessing(w, h);
@@ -233,22 +205,28 @@
                 srcMat = new cv.Mat(height, width, cv.CV_8UC4);
                 grayMat = new cv.Mat(height, width, cv.CV_8UC1);
                 oldGrayMat = new cv.Mat(height, width, cv.CV_8UC1);
+                
                 p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
 
                 cap.read(srcMat);
-                if (srcMat.cols !== width) throw new Error("Size mismatch");
+                // 사이즈 검증
+                if (srcMat.cols !== width || srcMat.rows !== height) {
+                    updateLog("⚠️ 사이즈 불일치 재시도...");
+                    throw new Error("Resize Needed");
+                }
 
                 cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
+                
                 let none = new cv.Mat();
                 cv.goodFeaturesToTrack(oldGrayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
                 none.delete();
 
-                log(`🚀 엔진 가동!`);
+                updateLog(`🚀 추적 엔진 가동 (Points: ${p0.rows})`);
                 isCVRunning = true;
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
-                log("초기화 에러: " + e);
-                setTimeout(() => startOpenCVProcessing(width, height), 1000);
+                updateLog("재시도 중...");
+                setTimeout(() => startOpenCVProcessing(width, height), 500);
             }
         }
 
@@ -256,9 +234,11 @@
             if (!isCVRunning) return;
             try {
                 cap.read(srcMat);
+                // 해상도 변경 감지 시 중단
                 if (srcMat.cols !== video.videoWidth) {
                     isCVRunning = false; waitForVideoSize(); return;
                 }
+                
                 cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
 
                 if (p0.rows > 0) {
@@ -288,12 +268,12 @@
                 grayMat.copyTo(oldGrayMat);
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
-                log("런타임 에러: " + e); isCVRunning = false;
+                isCVRunning = false;
             }
         }
 
         document.getElementById('btn-visualize').addEventListener('click', () => {
-            log("🛑 3D 변환.");
+            updateLog("🛑 3D 변환 시작");
             isCVRunning = false;
             if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
             document.getElementById('video-container').style.display = 'none';
@@ -323,7 +303,7 @@
         }
 
         function createPointCloud() {
-            if (finalFeatures.length === 0) { log("⚠️ 특징점 없음."); return; }
+            if (finalFeatures.length === 0) { updateLog("⚠️ 특징점 없음"); return; }
             const geometry = new THREE.SphereGeometry(0.1, 8, 8);
             const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
             pointCloud = new THREE.InstancedMesh(geometry, material, finalFeatures.length);
@@ -353,7 +333,6 @@
             controls.update();
             renderer.render(scene, camera);
         }
-
         window.addEventListener('resize', () => {
             if(camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight;
