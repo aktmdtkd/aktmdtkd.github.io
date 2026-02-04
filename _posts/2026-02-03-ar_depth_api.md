@@ -1,15 +1,15 @@
 ---
 layout: single
-title:  "Visual SLAM Test"
+title:  "AR Test"
 categories:
   - laboratory
-tag: [Visual-SLAM, Camera]
+tag: [AR, Camera]
 ---
 
 
 ## WebXR Spatial Mapping
 
-스마트폰으로 V-SLAM 돌려보기
+스마트폰으로 V-SLAM... 은 아니고,  돌려보기
 
 스마트폰의 카메라를 통해 공간을 인식하고, 인식된 표면에 점을 남겨 3D 지도를 그리는 실험입니다.
 
