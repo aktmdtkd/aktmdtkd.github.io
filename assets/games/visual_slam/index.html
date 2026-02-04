@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Official V-SLAM (Status Monitor)</title>
+    <title>V-SLAM Camera Fix</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
@@ -19,34 +19,35 @@
             background: rgba(0,0,0,0.9); z-index: 800;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
-        
-        /* 로딩 애니메이션 (퍼센트 대신 무한 회전) */
+
+        /* 로딩 애니메이션 */
         .spinner {
-            width: 50px; height: 50px;
-            border: 5px solid #333; border-top: 5px solid #0088ff; border-radius: 50%;
+            width: 40px; height: 40px;
+            border: 4px solid #333; border-top: 4px solid #00ff00; border-radius: 50%;
             animation: spin 1s linear infinite; margin-bottom: 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        #loading-text { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px; text-align: center;}
-        #sub-text { font-size: 14px; color: #aaa; text-align: center; max-width: 80%; }
+        #loading-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+        #sub-text { font-size: 14px; color: #aaa; }
 
         #btn-start {
             padding: 20px 40px; font-size: 20px; font-weight: bold; 
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
-            display: none; box-shadow: 0 0 15px #0088ff;
+            display: none; /* 로딩 전 숨김 */
+            box-shadow: 0 0 20px rgba(0, 136, 255, 0.5);
         }
 
-        #video-container { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; 
-            background: black;
+        /* ★ 핵심 수정: 비디오를 지우지 말고 투명하게 만듦 */
+        #videoInput { 
+            position: absolute; top: 0; left: 0; width: 1px; height: 1px; 
+            opacity: 0; z-index: -1; /* 뒤로 숨김 */
         }
-        video { display: none; }
-        #canvasOutput { width: 100%; height: 100%; object-fit: contain; }
 
-        #threejs-container { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
-            display: none; background: #222;
+        /* 캔버스가 실제 화면 역할 */
+        #canvasOutput { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            object-fit: contain; background: black; z-index: 500;
         }
 
         #ui-controls {
@@ -56,7 +57,11 @@
         #btn-visualize {
             padding: 15px 30px; font-size: 16px; font-weight: bold; 
             background: #ff4757; color: white; border: none; border-radius: 30px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        #threejs-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
+            display: none; background: #222;
         }
     </style>
 
@@ -70,24 +75,22 @@
     </script>
 </head>
 <body>
-    <div id="console-log">System Initializing...<br></div>
+    <div id="console-log">시스템 초기화 중...<br></div>
 
     <div id="start-overlay">
         <h2 style="margin-bottom: 30px;">V-SLAM Core</h2>
         
         <div id="loading-area">
             <div class="spinner"></div>
-            <div id="loading-text">서버 연결 중...</div>
-            <div id="sub-text">공식 서버(docs.opencv.org)에서<br>엔진을 받아오는 중입니다.</div>
+            <div id="loading-text">엔진 다운로드 중...</div>
+            <div id="sub-text">공식 서버 연결 중</div>
         </div>
 
         <button id="btn-start">📷 카메라 시작</button>
     </div>
 
-    <div id="video-container">
-        <video id="videoInput" playsinline webkit-playsinline></video>
-        <canvas id="canvasOutput"></canvas>
-    </div>
+    <video id="videoInput" playsinline webkit-playsinline></video>
+    <canvas id="canvasOutput"></canvas>
 
     <div id="ui-controls">
         <button id="btn-visualize">⏹ STOP & 3D VIEW</button>
@@ -103,38 +106,30 @@
             el.scrollTop = el.scrollHeight;
         }
 
-        // 전역 함수로 등록
+        // --- OpenCV 로드 ---
         window.onOpenCvSuccess = function() {
-            updateLog("✅ 파일 다운로드 완료 (1/2)");
-            document.getElementById('loading-text').innerText = "엔진 컴파일 & 초기화 중...";
-            document.getElementById('sub-text').innerText = "잠시 멈춘 것처럼 보일 수 있습니다 (CPU 연산 중)";
-            
-            // 초기화 감시 시작
+            updateLog("✅ 다운로드 완료. 컴파일 중...");
+            document.getElementById('loading-text').innerText = "엔진 시동 거는 중...";
             checkRuntime();
         };
 
         window.onOpenCvFail = function() {
-            updateLog("❌ 다운로드 실패! 인터넷 연결 확인 필요.");
+            updateLog("❌ 다운로드 실패.");
             document.getElementById('loading-text').innerText = "연결 실패";
             document.getElementById('loading-text').style.color = "red";
-            document.querySelector('.spinner').style.borderTopColor = "red";
         };
 
         function checkRuntime() {
-            // cv 객체가 생성되고, 함수들이 준비되었는지 0.5초마다 검사
             let checks = 0;
             const timer = setInterval(() => {
                 checks++;
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
                     clearInterval(timer);
-                    updateLog("✅ 엔진 초기화 완료 (2/2)");
+                    updateLog("✅ 엔진 준비 완료!");
                     finishLoading();
-                } else if (checks > 120) { // 60초 타임아웃
+                } else if (checks > 120) {
                     clearInterval(timer);
-                    updateLog("⚠️ 초기화 시간 초과. (기기가 느리거나 에러)");
-                    alert("엔진 시동에 실패했습니다. 새로고침 해주세요.");
-                } else {
-                    updateLog(`...초기화 대기 중 (${checks})`);
+                    alert("초기화 실패. 새로고침 하세요.");
                 }
             }, 500);
         }
@@ -143,12 +138,17 @@
             document.getElementById('loading-area').style.display = 'none';
             const btn = document.getElementById('btn-start');
             btn.style.display = 'block';
-            btn.onclick = startSystem;
+            
+            // ★ 클릭 이벤트 리스너 확실하게 연결
+            btn.onclick = function() {
+                console.log("버튼 클릭됨!");
+                updateLog("버튼 클릭됨. 카메라 요청 시작...");
+                startCameraPipeline();
+            };
         }
     </script>
     
     <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvSuccess()" onerror="onOpenCvFail()"></script>
-
 
     <script type="module">
         import * as THREE from 'three';
@@ -160,28 +160,37 @@
         let finalFeatures = [];
         let scene, camera, renderer, controls, pointCloud;
 
-        // 전역 함수 연결
-        window.startSystem = startCameraPipeline;
-
-        async function startCameraPipeline() {
+        window.startCameraPipeline = async function() {
             document.getElementById('start-overlay').style.display = 'none'; 
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
             
+            updateLog("권한 요청 중...");
+
             try {
+                // ★ 카메라 제약 조건 완화 (더 잘 붙음)
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' },
                     audio: false
                 });
 
-                updateLog("카메라 연결 성공.");
+                updateLog("스트림 획득 성공.");
                 video.srcObject = stream;
-                video.play();
-                waitForVideoSize();
+                
+                // ★ 비디오 재생 프로미스 처리
+                try {
+                    await video.play();
+                    updateLog("비디오 재생 시작됨.");
+                    waitForVideoSize();
+                } catch (playErr) {
+                    updateLog("❌ 비디오 재생 실패: " + playErr);
+                }
 
             } catch (err) {
-                updateLog("❌ 카메라 에러: " + err.message);
-                alert("카메라 권한이 필요합니다.");
+                updateLog("❌ 권한 거부됨: " + err.name);
+                alert("카메라 권한 허용이 필요합니다. (설정 확인)");
+                // 화면 다시 띄우기
+                document.getElementById('start-overlay').style.display = 'flex';
             }
         }
 
@@ -189,30 +198,32 @@
             const w = video.videoWidth;
             const h = video.videoHeight;
             if (w && h) {
-                updateLog(`📏 해상도 확정: ${w}x${h}`);
+                updateLog(`📏 해상도: ${w}x${h}`);
                 canvas.width = w; canvas.height = h;
                 document.getElementById('ui-controls').style.display = 'block';
                 startOpenCVProcessing(w, h);
             } else {
-                setTimeout(waitForVideoSize, 100);
+                updateLog("...해상도 감지 중...");
+                setTimeout(waitForVideoSize, 500); // 0.5초 간격
             }
         }
 
         function startOpenCVProcessing(width, height) {
+            updateLog("메모리 할당...");
             try {
                 if(cap) delete cap;
                 cap = new cv.VideoCapture(video);
                 srcMat = new cv.Mat(height, width, cv.CV_8UC4);
                 grayMat = new cv.Mat(height, width, cv.CV_8UC1);
                 oldGrayMat = new cv.Mat(height, width, cv.CV_8UC1);
-                
                 p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
 
                 cap.read(srcMat);
-                // 사이즈 검증
+                // Mat 생성 크기와 비디오 크기 불일치 체크
                 if (srcMat.cols !== width || srcMat.rows !== height) {
-                    updateLog("⚠️ 사이즈 불일치 재시도...");
-                    throw new Error("Resize Needed");
+                    updateLog("⚠️ 크기 불일치. 재시작.");
+                    startOpenCVProcessing(width, height); // 재귀 재시도
+                    return;
                 }
 
                 cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
@@ -221,12 +232,13 @@
                 cv.goodFeaturesToTrack(oldGrayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
                 none.delete();
 
-                updateLog(`🚀 추적 엔진 가동 (Points: ${p0.rows})`);
+                updateLog(`🚀 V-SLAM 엔진 가동!`);
                 isCVRunning = true;
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
-                updateLog("재시도 중...");
-                setTimeout(() => startOpenCVProcessing(width, height), 500);
+                updateLog("초기화 중 에러: " + e);
+                // 재시도 로직
+                setTimeout(() => startOpenCVProcessing(width, height), 1000);
             }
         }
 
@@ -268,7 +280,8 @@
                 grayMat.copyTo(oldGrayMat);
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
-                isCVRunning = false;
+                // 에러 무시하고 계속 진행 (강건성)
+                requestAnimationFrame(processVideoFrame);
             }
         }
 
@@ -276,7 +289,7 @@
             updateLog("🛑 3D 변환 시작");
             isCVRunning = false;
             if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-            document.getElementById('video-container').style.display = 'none';
+            document.getElementById('canvasOutput').style.display = 'none'; // 2D 캔버스 숨김
             document.getElementById('ui-controls').style.display = 'none';
             document.getElementById('threejs-container').style.display = 'block';
             initThreeJS();
