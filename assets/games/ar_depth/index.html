@@ -3,15 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR Dense Scanner</title>
+    <title>WebXR Visualizer Fixed</title>
     <style>
-        /* ★ 핵심 수정 1: html과 body 배경을 강제로 아주 진한 회색으로 고정 */
         html, body { 
-            margin: 0; 
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; 
-            background-color: #1a1a1a !important; /* 흰색 방지 강제 적용 */
+            margin: 0; width: 100%; height: 100%; overflow: hidden; 
+            background-color: #1a1a1a !important; 
             font-family: 'Courier New', Courier, monospace; 
             color: #00ff00; 
         }
@@ -19,10 +15,10 @@
             position: absolute; top: 10px; left: 10px; pointer-events: none; z-index: 100;
             background: rgba(0, 0, 0, 0.7); padding: 10px; border: 1px solid #444; border-radius: 5px;
         }
-        h3 { margin: 0 0 5px 0; font-size: 16px; color: white; }
-        p { margin: 2px 0; font-size: 12px; color: #aaa; }
-        #status { color: #00ff00; font-weight: bold; }
-        #error-msg { color: #ff5555; background: rgba(50,0,0,0.8); display: none; padding: 5px; margin-top: 5px;}
+        #debug-info {
+            position: absolute; bottom: 10px; left: 10px; pointer-events: none; z-index: 100;
+            color: yellow; font-size: 12px; text-shadow: 1px 1px 1px black;
+        }
     </style>
 
     <script type="importmap">
@@ -36,11 +32,11 @@
 </head>
 <body>
     <div id="overlay">
-        <h3>WebXR Dense Scanner</h3>
+        <h3>WebXR Scanner (Fix Visibility)</h3>
         <p>Status: <span id="status">Initializing...</span></p>
         <p>Points: <span id="point-count">0</span> / 30000</p>
-        <div id="error-msg"></div>
     </div>
+    <div id="debug-info">Waiting...</div>
 
     <script type="module">
         import * as THREE from 'three';
@@ -51,44 +47,27 @@
         let controls;
         let hitTestSource = null, hitTestSourceRequested = false;
         let mesh, count = 0, isARMode = false;
-        
-        const MAX_POINTS = 30000; 
+        const MAX_POINTS = 30000;
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
         
-        let gridHelper, axesHelper;
+        let gridHelper, axesHelper, originMarker;
 
-        try {
-            init();
-            animate();
-        } catch(e) {
-            showError(e.message);
-        }
-
-        function showError(msg) {
-            const el = document.getElementById('error-msg');
-            el.style.display = 'block';
-            el.innerText = "Error: " + msg;
-        }
+        init();
+        animate();
 
         function init() {
             container = document.createElement('div');
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
-            
-            // ★ 핵심 수정 2: 초기 배경색을 확실하게 지정
             scene.background = new THREE.Color(0x1a1a1a);
 
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
             scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            dirLight.position.set(0, 10, 0);
-            scene.add(dirLight);
 
-            // 투명도(alpha) true 유지 (AR 카메라 봐야 하므로)
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -104,24 +83,35 @@
                             domOverlay: { root: document.body }
                         });
                         document.body.appendChild(button);
-                        document.getElementById('status').innerText = "Ready (Click Start AR)";
+                        document.getElementById('status').innerText = "Ready. Press START AR.";
                     } else {
                         document.getElementById('status').innerText = "AR Not Supported";
                     }
                 });
-            } else {
-                showError("WebXR API missing");
             }
 
             renderer.xr.addEventListener('sessionstart', onSessionStart);
             renderer.xr.addEventListener('sessionend', onSessionEnd);
 
-            const geometry = new THREE.BoxGeometry(0.005, 0.005, 0.005); 
-            const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.5 });
+            // ★ 중요 수정 1: 점의 크기를 0.02 (2cm)로 키워서 잘 보이게 함
+            const geometry = new THREE.BoxGeometry(0.02, 0.02, 0.02);
+            // 조명 영향 덜 받는 BasicMaterial 사용 (잘 보이게)
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
             
             mesh = new THREE.InstancedMesh(geometry, material, MAX_POINTS);
             mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            
+            // ★ 중요 수정 2: Frustum Culling 끄기 (무조건 그리기)
+            // 이걸 꺼야 3D 뷰어 모드에서 점이 사라지지 않습니다.
+            mesh.frustumCulled = false; 
+            
             scene.add(mesh);
+
+            // 기준점 (빨간 박스)
+            const boxGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const boxMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+            originMarker = new THREE.Mesh(boxGeo, boxMat);
+            scene.add(originMarker);
 
             window.addEventListener('resize', onWindowResize);
         }
@@ -129,84 +119,46 @@
         function onSessionStart() {
             isARMode = true;
             count = 0;
-            scene.background = null; // AR 모드에서는 배경 투명 (카메라 보임)
-            if(gridHelper) scene.remove(gridHelper);
+            scene.background = null; 
+            originMarker.visible = false;
+            if(gridHelper) scene.remove(gridHelper); // 그리드 제거
             if(axesHelper) scene.remove(axesHelper);
-            document.getElementById('status').innerText = "Scanning... (Move Phone!)";
+            document.getElementById('status').innerText = "Scanning... Move phone!";
         }
 
         function onSessionEnd() {
             isARMode = false;
             renderer.xr.enabled = false;
             
-            // ★ 핵심 수정 3: 종료 즉시 배경색을 다시 칠함
-            scene.background = new THREE.Color(0x1a1a1a);
-            document.getElementById('status').innerText = "Visualization Mode";
+            renderer.setClearAlpha(1.0);
+            scene.background = new THREE.Color(0x222222);
+            
+            document.getElementById('status').innerText = "Viewer Mode";
+            originMarker.visible = true;
 
-            // ★ 핵심 수정 4: 카메라도 재설정 (AR 카메라는 FOV가 다르므로 복구)
-            camera.fov = 60;
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.near = 0.01;
-            camera.far = 100;
+            // 카메라 리셋
+            camera.position.set(0, 2, 3); 
+            camera.lookAt(0, 0, 0);
             camera.updateProjectionMatrix();
 
             if (!controls) {
                 controls = new OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-            }
-            setupVisualization();
-        }
-
-        function setupVisualization() {
-            // 점이 하나도 안 찍혔을 경우 대비
-            if (count === 0) {
-                camera.position.set(0, 1, 2);
-                camera.lookAt(0, 0, 0);
-                addGridAndAxes(new THREE.Vector3(0, -1, 0));
-                return;
-            }
-
-            const box = new THREE.Box3();
-            const tempMatrix = new THREE.Matrix4();
-            const tempPos = new THREE.Vector3();
-            
-            // 샘플링하여 중심 계산
-            const step = Math.max(1, Math.floor(count / 100));
-            for (let i = 0; i < count; i += step) {
-                mesh.getMatrixAt(i, tempMatrix);
-                tempPos.setFromMatrixPosition(tempMatrix);
-                box.expandByPoint(tempPos);
-            }
-
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const maxDim = Math.max(size.x, size.z) + 1;
-
-            addGridAndAxes(new THREE.Vector3(center.x, box.min.y, center.z), maxDim);
-
-            // 카메라 위치 잡기
-            const camDist = Math.max(size.x, size.y, size.z) * 1.5;
-            camera.position.set(center.x + camDist, center.y + camDist * 0.8, center.z + camDist);
-            camera.lookAt(center);
-            
-            if(controls) {
-                controls.target.copy(center);
+                controls.target.set(0, 0, 0);
                 controls.update();
             }
+
+            addGrid();
+            updateDebugInfo();
         }
 
-        function addGridAndAxes(position, size = 5) {
+        function addGrid() {
             if(gridHelper) scene.remove(gridHelper);
-            if(axesHelper) scene.remove(axesHelper);
-            
-            gridHelper = new THREE.GridHelper(size * 2, 20, 0x888888, 0x444444);
-            gridHelper.position.set(position.x, position.y, position.z);
+            gridHelper = new THREE.GridHelper(10, 20, 0x888888, 0x444444);
+            gridHelper.position.set(0, -1.5, 0); // 그리드를 좀 아래로
             scene.add(gridHelper);
             
-            axesHelper = new THREE.AxesHelper(size / 5);
-            axesHelper.position.set(position.x, position.y, position.z);
+            if(axesHelper) scene.remove(axesHelper);
+            axesHelper = new THREE.AxesHelper(1);
             scene.add(axesHelper);
         }
 
@@ -220,8 +172,11 @@
             renderer.setAnimationLoop(render);
         }
 
-        function randomNoise() {
-            return (Math.random() - 0.5) * 0.15; 
+        function updateDebugInfo() {
+            const pos = camera.position;
+            document.getElementById('debug-info').innerText = 
+                `Cam: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}\n` +
+                `Points: ${count}`;
         }
 
         function render(timestamp, frame) {
@@ -244,34 +199,35 @@
                     if (hitTestResults.length > 0 && count < MAX_POINTS) {
                         const hit = hitTestResults[0];
                         const pose = hit.getPose(referenceSpace);
-
+                        
                         const px = pose.transform.position.x;
                         const py = pose.transform.position.y;
                         const pz = pose.transform.position.z;
 
-                        // 스프레이 (10개씩)
-                        const sprayCount = 10; 
-                        for(let i=0; i<sprayCount; i++) {
+                        // 스프레이 (5개씩)
+                        for(let i=0; i<5; i++) {
                             if(count >= MAX_POINTS) break;
-                            const nx = px + randomNoise();
-                            const ny = py + (Math.random() - 0.5) * 0.02;
-                            const nz = pz + randomNoise();
+                            
+                            const nx = px + (Math.random()-0.5)*0.15;
+                            const ny = py + (Math.random()-0.5)*0.05;
+                            const nz = pz + (Math.random()-0.5)*0.15;
 
                             dummy.position.set(nx, ny, nz);
-                            dummy.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
+                            dummy.rotation.set(Math.random(), Math.random(), Math.random());
                             dummy.updateMatrix();
-                            
                             mesh.setMatrixAt(count, dummy.matrix);
-
-                            // Height Map Color
-                            const h = (ny + 1.0) / 2.5; 
-                            color.setHSL(h, 1.0, 0.5);
+                            
+                            // 높이 색상 (초록색 베이스)
+                            // 0m(바닥) 근처는 초록색, 높으면 노란색
+                            const h = (ny + 1.0) / 4.0;
+                            color.setHSL(0.3 - h*0.2, 1.0, 0.5); 
                             mesh.setColorAt(count, color);
-
+                            
                             count++;
                         }
                         mesh.instanceMatrix.needsUpdate = true;
                         mesh.instanceColor.needsUpdate = true;
+                        
                         document.getElementById('point-count').innerText = count;
                     }
                 }
@@ -279,6 +235,7 @@
             } 
             else if (!isARMode) {
                 if (controls) controls.update();
+                updateDebugInfo();
                 renderer.render(scene, camera);
             }
         }
