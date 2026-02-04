@@ -3,22 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Core to 3D Visualizer</title>
+    <title>Robust V-SLAM Visualizer</title>
     <style>
-        body { margin: 0; background: #1a1a1a; overflow: hidden; font-family: monospace; color: #0f0; }
-        /* 비디오 및 2D 캔버스 (초기에 보임) */
-        #video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        video { display: none; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
+        
+        /* 1. 상태 로그창 (가장 위에 표시) */
+        #console-log {
+            position: absolute; top: 0; left: 0; width: 100%; height: 150px;
+            background: rgba(0,0,0,0.7); pointer-events: none; z-index: 999;
+            padding: 10px; box-sizing: border-box; font-size: 12px; color: #ffff00;
+            overflow-y: auto; white-space: pre-wrap;
+        }
+
+        /* 2. 시작 버튼 (중앙) */
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 800;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        #btn-start {
+            padding: 20px 40px; font-size: 20px; font-weight: bold; 
+            background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
+        }
+        #btn-start:disabled { background: #555; cursor: wait; }
+
+        /* 3. 2D 비디오 영역 */
+        #video-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; 
+            background: black;
+        }
+        video { display: none; } /* 비디오는 숨기고 캔버스만 보여줌 */
         #canvasOutput { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* 3D 뷰어 컨테이너 (나중에 보임) */
-        #threejs-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        
-        /* UI 요소 */
-        #info { position: absolute; top: 10px; left: 10px; z-index: 20; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; pointer-events: none; }
-        #controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20; }
-        button { padding: 15px 30px; font-size: 16px; font-weight: bold; color: white; background: #d63031; border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        /* 4. 3D 뷰어 영역 (처음엔 숨김) */
+        #threejs-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
+            display: none; background: #222;
+        }
+
+        /* 컨트롤 버튼 */
+        #ui-controls {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 900; display: none; /* 카메라 켜지면 보임 */
+        }
+        #btn-visualize {
+            padding: 15px 30px; font-size: 16px; font-weight: bold; 
+            background: #ff4757; color: white; border: none; border-radius: 30px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
     </style>
 
     <script type="importmap">
@@ -30,20 +62,24 @@
         }
     </script>
 
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvLoaded()" type="text/javascript"></script>
 </head>
 <body>
-    <div id="info">
-        Status: <span id="status-text">Loading Engine...</span><br>
-        Tracked Features: <span id="feature-count">0</span>
+    <div id="console-log">System Initializing...<br></div>
+
+    <div id="start-overlay">
+        <h2 style="margin-bottom: 20px;">V-SLAM Core</h2>
+        <button id="btn-start" disabled>OpenCV 로딩 중...</button>
+        <p style="color: #aaa; margin-top: 10px;">(파일이 커서 5~10초 걸릴 수 있습니다)</p>
     </div>
 
     <div id="video-container">
         <video id="videoInput" playsinline webkit-playsinline></video>
         <canvas id="canvasOutput"></canvas>
-        <div id="controls">
-            <button id="stop-btn" disabled>STOP & VISUALIZE</button>
-        </div>
+    </div>
+
+    <div id="ui-controls">
+        <button id="btn-visualize">⏹ STOP & 3D VIEW</button>
     </div>
 
     <div id="threejs-container"></div>
@@ -52,236 +88,280 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // === 전역 변수 ===
-        // OpenCV 관련
+        // === 로깅 유틸리티 ===
+        function log(msg) {
+            const el = document.getElementById('console-log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `[${time}] ${msg}<br>`;
+            el.scrollTop = el.scrollHeight; // 자동 스크롤
+            console.log(msg);
+        }
+
+        // 전역 변수
         let video, canvas, ctx, cap;
-        let srcMat, grayMat, oldGrayMat, p0, p1, st, err, mask;
+        let srcMat, grayMat, oldGrayMat, p0, p1, st, err;
         let isCVRunning = false;
-        let opencvLoaded = false;
+        let finalFeatures = [];
 
-        // 데이터 저장소 (추적된 점들의 최종 위치 저장)
-        let finalFeatures = []; 
+        // Three.js 변수
+        let scene, camera, renderer, controls, pointCloud;
 
-        // Three.js 관련
-        let camera3D, scene3D, renderer3D, controls3D;
-        let pointCloudMesh;
-
-        // === 1. OpenCV 초기화 및 루프 ===
-        window.onOpenCvReady = function() {
-            updateStatus("OpenCV Ready. Starting Camera...");
-            opencvLoaded = true;
-            startCamera();
+        // 1. OpenCV 로딩 완료 체크
+        window.onOpenCvLoaded = function() {
+            log("✅ OpenCV 라이브러리 다운로드 완료!");
+            log("이제 '카메라 시작' 버튼을 누를 수 있습니다.");
+            
+            const btn = document.getElementById('btn-start');
+            btn.innerText = "📷 카메라 시작 (Start Camera)";
+            btn.disabled = false;
+            btn.style.backgroundColor = "#2ed573";
+            
+            btn.onclick = startCameraPipeline;
         };
 
-        async function startCamera() {
+        // 2. 카메라 시작 파이프라인
+        async function startCameraPipeline() {
+            log("카메라 권한 요청 중...");
+            document.getElementById('start-overlay').style.display = 'none'; // 오버레이 숨김
+
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
-            ctx = canvas.getContext('2d');
+            
+            // 캔버스 크기 임시 설정
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
                     audio: false
                 });
+
+                log("카메라 스트림 획득 성공.");
                 video.srcObject = stream;
                 video.play();
-                
+
                 video.onloadedmetadata = () => {
+                    log(`비디오 메타데이터 로드됨: ${video.videoWidth}x${video.videoHeight}`);
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    updateStatus("Camera Active. Tracking features...");
-                    document.getElementById('stop-btn').disabled = false;
-                    startProcessing();
+                    
+                    document.getElementById('ui-controls').style.display = 'block';
+                    startOpenCVProcessing();
                 };
+
             } catch (err) {
-                updateStatus("Camera Error: " + err);
+                log("❌ 카메라 에러: " + err.message);
+                alert("카메라를 켤 수 없습니다. HTTPS인지 확인하세요.");
             }
         }
 
-        function startProcessing() {
-            if (!opencvLoaded || !video) return;
+        // 3. OpenCV 처리 루프 (Optical Flow)
+        function startOpenCVProcessing() {
+            log("OpenCV 메모리 할당 중...");
+            try {
+                cap = new cv.VideoCapture(video);
+                srcMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+                grayMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
+                oldGrayMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
+                
+                p0 = new cv.Mat();
+                p1 = new cv.Mat();
+                st = new cv.Mat();
+                err = new cv.Mat();
 
-            cap = new cv.VideoCapture(video);
-            srcMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
-            grayMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
-            oldGrayMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
-            p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
+                // 첫 프레임 읽기
+                cap.read(srcMat);
+                cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
 
-            cap.read(srcMat);
-            cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
+                // 특징점 추출
+                let none = new cv.Mat();
+                cv.goodFeaturesToTrack(oldGrayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
+                none.delete();
 
-            let none = new cv.Mat();
-            cv.goodFeaturesToTrack(oldGrayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
-            none.delete();
-            mask = new cv.Mat.zeros(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+                log("🚀 추적 엔진 가동 시작!");
+                isCVRunning = true;
+                requestAnimationFrame(processVideoFrame);
 
-            isCVRunning = true;
-            requestAnimationFrame(processVideo);
+            } catch (e) {
+                log("❌ OpenCV 초기화 실패: " + e);
+            }
         }
 
-        function processVideo() {
+        function processVideoFrame() {
             if (!isCVRunning) return;
+
             try {
-                if (video.paused || video.ended) return;
+                // 비디오 읽기
                 cap.read(srcMat);
                 cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
 
+                // 특징점 추적
                 if (p0.rows > 0) {
                     cv.calcOpticalFlowPyrLK(oldGrayMat, grayMat, p0, p1, st, err);
-                    
+
+                    // 그리기 및 데이터 저장
                     let goodPoints = [];
-                    finalFeatures = []; // 현재 프레임의 특징점 리스트 초기화
+                    finalFeatures = []; // 현재 프레임 데이터 초기화
 
                     for (let i = 0; i < p0.rows; i++) {
                         if (st.data[i] === 1) {
                             let newX = p1.data32F[i * 2];
                             let newY = p1.data32F[i * 2 + 1];
+
+                            // 캔버스에 그리기 (OpenCV 함수)
+                            cv.circle(srcMat, new cv.Point(newX, newY), 5, [0, 255, 0, 255], -1);
                             
-                            // 시각화용 그리기
-                            cv.circle(srcMat, new cv.Point(newX, newY), 4, [0, 255, 0, 255], -1);
-                            goodPoints.push(newX, newY);
-                            
-                            // ★ 중요: 나중에 3D로 바꿀 2D 데이터 저장 (정규화하여 저장)
-                            // 화면 중앙을 (0,0)으로 하고 -0.5 ~ 0.5 범위로 변환
+                            // 데이터 저장 (나중에 3D로 변환용)
                             finalFeatures.push({
                                 u: (newX / canvas.width) - 0.5,
                                 v: (newY / canvas.height) - 0.5
                             });
+                            
+                            goodPoints.push(newX, newY);
                         }
                     }
+
+                    // 화면 업데이트
                     cv.imshow('canvasOutput', srcMat);
-                    document.getElementById('feature-count').innerText = finalFeatures.length;
 
                     // 점이 너무 적으면 재추출
-                    if (goodPoints.length < 50) {
-                         let none = new cv.Mat();
-                         cv.goodFeaturesToTrack(grayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
-                         none.delete();
+                    if (goodPoints.length < 30) {
+                        let none = new cv.Mat();
+                        cv.goodFeaturesToTrack(grayMat, p0, 200, 0.3, 7, none, 7, false, 0.04);
+                        none.delete();
                     } else {
-                         p1.copyTo(p0);
+                        p1.copyTo(p0);
                     }
                 }
+                
+                // 현재 -> 과거 프레임 저장
                 grayMat.copyTo(oldGrayMat);
-                requestAnimationFrame(processVideo);
-            } catch (err) { console.error(err); isCVRunning = false;}
+                requestAnimationFrame(processVideoFrame);
+
+            } catch (e) {
+                log("처리 중 에러: " + e);
+                isCVRunning = false;
+            }
         }
 
-        // === 2. 모드 전환 (2D -> 3D) ===
-        document.getElementById('stop-btn').addEventListener('click', () => {
+        // 4. 모드 전환 (2D -> 3D)
+        document.getElementById('btn-visualize').addEventListener('click', () => {
+            log("🛑 추적 중단. 3D 시각화 모드 전환.");
             isCVRunning = false;
-            if (video.srcObject) {
+
+            // 카메라 리소스 해제
+            if(video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
 
-            updateStatus("Generating 3D Visualization...");
+            // 화면 전환
             document.getElementById('video-container').style.display = 'none';
+            document.getElementById('ui-controls').style.display = 'none';
             document.getElementById('threejs-container').style.display = 'block';
-            
+
             initThreeJS();
-            create3DPointCloud();
         });
 
-        // === 3. Three.js 3D 시각화 ===
+        // 5. Three.js 3D 뷰어
         function initThreeJS() {
+            log("Three.js 월드 생성 중...");
             const container = document.getElementById('threejs-container');
-            
-            scene3D = new THREE.Scene();
-            scene3D.background = new THREE.Color(0x222222);
-            
-            // 버드아이뷰를 위해 카메라를 높이 설정
-            camera3D = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera3D.position.set(0, 5, 5); // 위에서 아래로
-            camera3D.lookAt(0, 0, 0);
 
-            renderer3D = new THREE.WebGLRenderer({ antialias: true });
-            renderer3D.setSize(window.innerWidth, window.innerHeight);
-            container.appendChild(renderer3D.domElement);
+            // 씬 설정
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
 
-            // 컨트롤 추가
-            controls3D = new OrbitControls(camera3D, renderer3D.domElement);
-            controls3D.enableDamping = true;
-            controls3D.dampingFactor = 0.05;
+            // 카메라 설정 (버드아이뷰)
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 5); // 위에서 아래로
+            camera.lookAt(0, 0, 0);
 
-            // 격자와 축 추가
-            const gridHelper = new THREE.GridHelper(10, 20, 0x444444, 0x222222);
-            scene3D.add(gridHelper);
+            // 렌더러
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // 컨트롤
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // 격자 및 축
+            const gridHelper = new THREE.GridHelper(10, 20, 0x888888, 0x444444);
+            scene.add(gridHelper);
             const axesHelper = new THREE.AxesHelper(2);
-            scene3D.add(axesHelper);
-            
-            // 조명
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-            scene3D.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-            dirLight.position.set(5, 10, 7);
-            scene3D.add(dirLight);
+            scene.add(axesHelper);
 
-            window.addEventListener('resize', onWindowResize3D);
+            // 조명
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 10, 5);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+            // 점군 생성
+            createPointCloud();
+            
+            // 애니메이션 시작
             animate3D();
         }
 
-        function create3DPointCloud() {
+        function createPointCloud() {
             if (finalFeatures.length === 0) {
-                updateStatus("No features tracked available.");
+                log("⚠️ 저장된 특징점이 없습니다. (추적이 안 됐거나 너무 짧았음)");
                 return;
             }
 
-            const pointCount = finalFeatures.length;
-            const geometry = new THREE.IcosahedronGeometry(0.05, 1); // 점 크기
-            const material = new THREE.MeshStandardMaterial({ color: 0x00ff00, metalness: 0.5, roughness: 0.2 });
-            pointCloudMesh = new THREE.InstancedMesh(geometry, material, pointCount);
+            log(`📊 수집된 특징점 ${finalFeatures.length}개를 3D로 변환합니다.`);
+
+            const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            pointCloud = new THREE.InstancedMesh(geometry, material, finalFeatures.length);
 
             const dummy = new THREE.Object3D();
             const color = new THREE.Color();
+            
+            const FAKE_DEPTH = 4.0; // 4미터 앞 가상 평면
+            const SCALE = 5.0; // 퍼짐 정도
 
-            // ★ 핵심: 2D(u,v) -> 3D(x,y,z) 변환 (가짜 깊이 생성)
-            // 가정: 모든 점은 카메라 앞 3미터 거리에 있는 가상의 평면에 있다.
-            const FAKE_DEPTH = 3.0; 
-            const SCALE_X = 4.0; // 화면 비율에 따른 너비 스케일
-            const SCALE_Y = 3.0; // 높이 스케일
-
-            for (let i = 0; i < pointCount; i++) {
-                const feature = finalFeatures[i];
+            for(let i=0; i<finalFeatures.length; i++) {
+                const f = finalFeatures[i];
                 
-                // 2D 이미지 좌표를 3D 공간 좌표로 투영
-                // u, v는 -0.5 ~ 0.5 범위임
-                const x = feature.u * SCALE_X;
-                const y = -feature.v * SCALE_Y; // Y축 반전 (이미지 좌표계와 3D 좌표계 차이)
-                const z = -FAKE_DEPTH; // 카메라 앞쪽(음수 Z)으로 배치
+                // 2D -> 3D 투영
+                const x = f.u * SCALE;
+                const y = -f.v * SCALE; // Y축 반전
+                const z = (Math.random() - 0.5) * 1.0; // 약간의 입체감을 위해 Z축 노이즈 추가
 
-                dummy.position.set(x, y, z);
+                dummy.position.set(x, z, y); // 버드아이뷰니까 Y가 높이(Z)가 됨
                 dummy.updateMatrix();
-                pointCloudMesh.setMatrixAt(i, dummy.matrix);
+                pointCloud.setMatrixAt(i, dummy.matrix);
 
-                // 중앙에 가까울수록 밝은색 (시각적 효과)
-                const dist = Math.sqrt(x*x + y*y);
-                color.setHSL(0.3, 1.0, 1.0 - dist*0.2);
-                pointCloudMesh.setColorAt(i, color);
+                // 색상 다양화
+                color.setHSL(Math.random(), 1.0, 0.5);
+                pointCloud.setColorAt(i, color);
             }
 
-            pointCloudMesh.instanceMatrix.needsUpdate = true;
-            pointCloudMesh.instanceColor.needsUpdate = true;
-            scene3D.add(pointCloudMesh);
-
-            updateStatus(`Visualization Ready (${pointCount} points). Rotate view!`);
-        }
-
-        function onWindowResize3D() {
-            camera3D.aspect = window.innerWidth / window.innerHeight;
-            camera3D.updateProjectionMatrix();
-            renderer3D.setSize(window.innerWidth, window.innerHeight);
+            pointCloud.instanceMatrix.needsUpdate = true;
+            pointCloud.instanceColor.needsUpdate = true;
+            scene.add(pointCloud);
         }
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            if (controls3D) controls3D.update();
-            renderer3D.render(scene3D, camera3D);
+            controls.update();
+            renderer.render(scene, camera);
         }
 
-        function updateStatus(msg) {
-            document.getElementById('status-text').innerText = msg;
-        }
-
-        // 메모리 해제는 복잡하므로 데모에서는 생략 (새로고침 권장)
+        window.addEventListener('resize', () => {
+            if(camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
     </script>
 </body>
 </html>
