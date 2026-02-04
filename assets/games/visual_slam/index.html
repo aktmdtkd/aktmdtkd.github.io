@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Ultimate Fix</title>
+    <title>V-SLAM Debug Mode</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
         #console-log {
-            position: absolute; top: 0; left: 0; width: 100%; height: 150px;
+            position: absolute; top: 0; left: 0; width: 100%; height: 250px;
             background: rgba(0,0,0,0.8); pointer-events: none; z-index: 999;
-            padding: 10px; box-sizing: border-box; font-size: 13px; color: #ffff00;
+            padding: 10px; box-sizing: border-box; font-size: 12px; color: #00ff00;
             overflow-y: auto; white-space: pre-wrap; border-bottom: 2px solid #555;
         }
 
@@ -20,21 +20,16 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
 
-        .loader {
-            border: 5px solid #333; border-top: 5px solid #00ff00; border-radius: 50%;
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
         #btn-start {
             padding: 20px 40px; font-size: 20px; font-weight: bold; 
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
             display: none; margin-top: 20px;
         }
 
-        /* 비디오 투명화 (display:none 금지) */
-        #videoInput { position: absolute; opacity: 0; z-index: -1; }
-        #canvasOutput { width: 100%; height: 100%; object-fit: contain; background: #111; }
+        /* 비디오 숨김 (투명) */
+        #videoInput { position: absolute; top:0; left:0; opacity: 0; z-index: -1; }
+        /* 캔버스 (화면) */
+        #canvasOutput { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #111; z-index: 100;}
 
         #ui-controls {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
@@ -52,12 +47,11 @@
     </script>
 </head>
 <body>
-    <div id="console-log">로그 대기 중...<br></div>
+    <div id="console-log">시스템 대기 중...<br></div>
 
     <div id="start-overlay">
-        <h2>V-SLAM Ultimate</h2>
-        <div class="loader" id="loader"></div>
-        <div id="status-text">엔진 준비 중...</div>
+        <h2>V-SLAM Debug</h2>
+        <div id="status-text">엔진 다운로드 중...</div>
         <button id="btn-start">📷 카메라 시작</button>
     </div>
 
@@ -70,34 +64,31 @@
     <script>
         function log(msg) {
             const el = document.getElementById('console-log');
-            if(el) {
-                el.innerHTML += `> ${msg}<br>`;
-                el.scrollTop = el.scrollHeight;
-            }
+            const time = new Date().toLocaleTimeString().split(' ')[0]; // 시간만 표시
+            el.innerHTML += `[${time}] ${msg}<br>`;
+            el.scrollTop = el.scrollHeight;
         }
 
-        // OpenCV 로딩
+        // 1. OpenCV 로드
         window.onOpenCvReady = function() {
             log("✅ 스크립트 로드됨.");
             checkOpenCv();
         };
 
         function checkOpenCv() {
+            let attempts = 0;
             const timer = setInterval(() => {
+                attempts++;
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
                     clearInterval(timer);
-                    log("✅ 엔진 초기화 성공!");
-                    document.getElementById('loader').style.display = 'none';
+                    log("✅ OpenCV 초기화 성공!");
                     document.getElementById('status-text').innerText = "준비 완료";
                     
                     const btn = document.getElementById('btn-start');
                     btn.style.display = 'block';
-                    
-                    btn.onclick = function() {
-                        if(window.startCameraForce) {
-                            window.startCameraForce();
-                        }
-                    };
+                    btn.onclick = startCameraDebug;
+                } else if (attempts > 50) {
+                     log("...엔진 초기화 대기 중...");
                 }
             }, 500);
         }
@@ -108,140 +99,88 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        let video, canvas, cap;
+        let video, canvas, ctx;
+        let cap;
         let srcMat, grayMat, oldGrayMat, p0, p1, st, err;
         let isCVRunning = false;
         let finalFeatures = [];
-        
-        // 현재 할당된 메모리 크기 추적용
-        let currentWidth = 0;
-        let currentHeight = 0;
 
-        window.startCameraForce = async function() {
-            log("--- 카메라 시작 ---");
+        // 2. 카메라 시작 (디버그 모드)
+        window.startCameraDebug = async function() {
+            log("--- 카메라 프로세스 시작 ---");
             document.getElementById('start-overlay').style.display = 'none';
             
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
+            ctx = canvas.getContext('2d', { willReadFrequently: true }); // 성능 최적화
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
+                // 해상도를 명시적으로 요청 (640x480) - 가장 안정적
+                const constraints = { 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }, 
                     audio: false 
-                });
+                };
                 
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                log("1. 스트림 획득함.");
                 video.srcObject = stream;
-                await video.play();
-                log("비디오 재생 중...");
                 
-                // 엔진 가동 시작 (사이즈는 루프 안에서 맞춤)
-                startCV();
+                // 비디오 재생
+                await video.play();
+                log("2. 비디오 재생 명령 전송.");
+                
+                // 바로 시작하지 않고, 비디오가 진짜 준비될 때까지 감시하는 루프 실행
+                monitorVideoState();
 
             } catch (err) {
-                log("❌ 에러: " + err.name);
-                alert("카메라 권한을 확인해주세요.");
+                log("❌ 에러: " + err.name + " / " + err.message);
+                alert("카메라 에러: " + err.name);
                 document.getElementById('start-overlay').style.display = 'flex';
             }
         };
 
-        function startCV() {
-            log("엔진 루프 시작...");
-            // 초기 캡처 객체 생성
-            try {
-                cap = new cv.VideoCapture(video);
-            } catch(e) {
-                log("VideoCapture 실패: " + e);
-                return;
-            }
-            
-            isCVRunning = true;
-            process();
-        }
+        // 3. 비디오 상태 정밀 감시 (Bad Size 원천 차단)
+        function monitorVideoState() {
+            if (!video) return;
 
-        function process() {
-            if(!isCVRunning) return;
-
-            // 1. 현재 비디오 크기 확인
             const w = video.videoWidth;
             const h = video.videoHeight;
+            const readyState = video.readyState; // 0:nothing, 4:enough_data
 
-            // 비디오가 아직 준비 안 됐으면 대기
-            if(w === 0 || h === 0) {
-                requestAnimationFrame(process);
-                return;
-            }
-
-            try {
-                // 2. 크기 변경 감지 (또는 초기화)
-                // 현재 할당된 메모리 크기와 실제 비디오 크기가 다르면 재할당
-                if (w !== currentWidth || h !== currentHeight) {
-                    log(`⚠️ 해상도 변경: ${currentWidth}x${currentHeight} -> ${w}x${h}`);
-                    reallocateMemory(w, h);
-                }
-
-                // 3. 프레임 읽기
-                cap.read(srcMat);
-
-                // 4. 알고리즘 실행
-                cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
+            if (w > 0 && h > 0 && readyState >= 3) { // 3 = HAVE_FUTURE_DATA
+                log(`3. 비디오 준비 완료! (${w}x${h}, State:${readyState})`);
                 
-                if(p0.rows > 0) {
-                    cv.calcOpticalFlowPyrLK(oldGrayMat, grayMat, p0, p1, st, err);
-                    finalFeatures = [];
-                    let goodPoints = [];
-                    
-                    for(let i=0; i<p0.rows; i++) {
-                        if(st.data[i] === 1) {
-                            let nx = p1.data32F[i*2];
-                            let ny = p1.data32F[i*2+1];
-                            
-                            // 화면 밖으로 나간 점 제거
-                            if(nx >=0 && nx < w && ny >=0 && ny < h) {
-                                cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
-                                finalFeatures.push({ u: nx/w, v: ny/h });
-                                goodPoints.push(nx, ny);
-                            }
-                        }
-                    }
-                    cv.imshow('canvasOutput', srcMat);
-                    
-                    // 점 부족하면 재추출
-                    if(goodPoints.length < 30) {
-                        detectFeatures(grayMat);
-                    } else { 
-                        p1.copyTo(p0); 
-                    }
-                } else {
-                    detectFeatures(grayMat);
-                }
-                
-                grayMat.copyTo(oldGrayMat);
-                
-            } catch(e) {
-                // 에러 발생 시 로그만 찍고 멈추지 않음 (다음 프레임 재시도)
-                // log("Frame Skip: " + e); 
-            }
-
-            requestAnimationFrame(process);
-        }
-
-        // 메모리 재할당 함수 (핵심)
-        function reallocateMemory(w, h) {
-            try {
-                // 기존 메모리 안전하게 해제
-                if(srcMat) srcMat.delete();
-                if(grayMat) grayMat.delete();
-                if(oldGrayMat) oldGrayMat.delete();
-                if(p0) p0.delete();
-                if(p1) p1.delete();
-                if(st) st.delete();
-                if(err) err.delete();
-
                 // 캔버스 크기 동기화
                 canvas.width = w;
                 canvas.height = h;
+                
+                document.getElementById('ui-controls').style.display = 'block';
+                
+                // 안전하게 엔진 시작
+                startOpenCV(w, h);
+            } else {
+                // 아직 준비 안 됨. 로그를 1초에 한 번만 찍으며 대기 (도배 방지)
+                if (Math.random() < 0.05) log(`...대기 중 (Size:${w}x${h}, State:${readyState})`);
+                requestAnimationFrame(monitorVideoState);
+            }
+        }
 
-                // 새 메모리 할당
+        function startOpenCV(w, h) {
+            log("메모리 할당 시작...");
+            try {
+                // 기존 객체 정리
+                if(cap) { try{ cap.delete(); } catch(e){} cap = null; }
+                if(srcMat) srcMat.delete(); 
+                if(grayMat) grayMat.delete();
+                if(oldGrayMat) oldGrayMat.delete();
+                if(p0) p0.delete(); 
+                if(p1) p1.delete(); 
+
+                cap = new cv.VideoCapture(video);
                 srcMat = new cv.Mat(h, w, cv.CV_8UC4);
                 grayMat = new cv.Mat(h, w, cv.CV_8UC1);
                 oldGrayMat = new cv.Mat(h, w, cv.CV_8UC1);
@@ -250,30 +189,95 @@
                 st = new cv.Mat(); 
                 err = new cv.Mat();
 
-                // 추적 상태 갱신
-                currentWidth = w;
-                currentHeight = h;
+                // 테스트 읽기
+                cap.read(srcMat);
                 
-                log("✅ 메모리 재할당 완료 (" + w + "x" + h + ")");
+                cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
+                
+                // 특징점 초기 추출
+                let none = new cv.Mat();
+                cv.goodFeaturesToTrack(oldGrayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
+                none.delete();
 
-                // 캡처 객체도 리셋 (가끔 내부 버퍼 문제 생김)
-                // if(cap) delete cap;
-                // cap = new cv.VideoCapture(video);
+                log(`🚀 엔진 가동 성공! (초기 특징점: ${p0.rows}개)`);
+                isCVRunning = true;
+                processLoop();
 
-            } catch(e) {
-                log("❌ 메모리 할당 실패: " + e);
+            } catch (e) {
+                log("❌ 초기화 실패: " + e);
+                log("재시도 합니다...");
+                setTimeout(() => startOpenCV(w, h), 1000);
             }
         }
 
-        function detectFeatures(gray) {
-            let none = new cv.Mat();
-            cv.goodFeaturesToTrack(gray, p0, 100, 0.3, 7, none, 7, false, 0.04);
-            none.delete();
+        function processLoop() {
+            if(!isCVRunning) return;
+
+            try {
+                // 방어 코드: 비디오 상태가 나빠지면 잠시 중단
+                if (video.readyState < 3 || video.videoWidth === 0) {
+                    // log("Frame Drop: Video not ready");
+                    requestAnimationFrame(processLoop);
+                    return;
+                }
+
+                // 캡처
+                cap.read(srcMat);
+                
+                // 그레이스케일 변환
+                cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
+                
+                if(p0.rows > 0) {
+                    // Optical Flow 계산
+                    cv.calcOpticalFlowPyrLK(oldGrayMat, grayMat, p0, p1, st, err);
+                    
+                    finalFeatures = [];
+                    let goodPoints = [];
+                    
+                    for(let i=0; i<p0.rows; i++) {
+                        if(st.data[i] === 1) {
+                            let nx = p1.data32F[i*2];
+                            let ny = p1.data32F[i*2+1];
+                            
+                            // 그리기
+                            cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
+                            
+                            finalFeatures.push({ u: nx/srcMat.cols, v: ny/srcMat.rows });
+                            goodPoints.push(nx, ny);
+                        }
+                    }
+                    
+                    // 화면 출력
+                    cv.imshow('canvasOutput', srcMat);
+                    
+                    // 점 관리
+                    if(goodPoints.length < 30) {
+                        let none = new cv.Mat();
+                        cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
+                        none.delete();
+                    } else { 
+                        p1.copyTo(p0); 
+                    }
+                } else {
+                    // 점 재추출
+                    let none = new cv.Mat();
+                    cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
+                    none.delete();
+                    cv.imshow('canvasOutput', srcMat); // 점 없을 때도 화면은 보여야 함
+                }
+                
+                grayMat.copyTo(oldGrayMat);
+
+            } catch(e) {
+                // log("Runtime Error (Skip): " + e);
+            }
+            
+            requestAnimationFrame(processLoop);
         }
 
         // 3D 변환 이벤트
         document.getElementById('btn-visualize').addEventListener('click', () => {
-            log("3D 변환 모드");
+            log("3D 변환 모드 진입");
             isCVRunning = false;
             
             if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
@@ -285,6 +289,7 @@
             initThreeJS();
         });
 
+        // Three.js Logic
         function initThreeJS() {
             const container = document.getElementById('threejs-container');
             const scene = new THREE.Scene();
@@ -302,7 +307,7 @@
             scene.add(new THREE.AxesHelper(2));
             const light = new THREE.DirectionalLight(0xffffff, 1);
             light.position.set(5, 10, 5); scene.add(light);
-            scene.add(new THREE.AmbientLight(0xffffff, 1));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
             if(finalFeatures.length > 0) {
                 const geo = new THREE.SphereGeometry(0.1);
@@ -320,7 +325,6 @@
                     dummy.position.set(x, y, z);
                     dummy.updateMatrix();
                     mesh.setMatrixAt(i, dummy.matrix);
-                    
                     color.setHSL(Math.random(), 1.0, 0.5);
                     mesh.setColorAt(i, color);
                 });
