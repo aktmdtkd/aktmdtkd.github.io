@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Final Fix</title>
+    <title>V-SLAM Ultimate Fix</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
         #console-log {
-            position: absolute; top: 0; left: 0; width: 100%; height: 200px;
+            position: absolute; top: 0; left: 0; width: 100%; height: 150px;
             background: rgba(0,0,0,0.8); pointer-events: none; z-index: 999;
             padding: 10px; box-sizing: border-box; font-size: 13px; color: #ffff00;
             overflow-y: auto; white-space: pre-wrap; border-bottom: 2px solid #555;
@@ -32,6 +32,7 @@
             display: none; margin-top: 20px;
         }
 
+        /* 비디오 투명화 (display:none 금지) */
         #videoInput { position: absolute; opacity: 0; z-index: -1; }
         #canvasOutput { width: 100%; height: 100%; object-fit: contain; background: #111; }
 
@@ -54,9 +55,9 @@
     <div id="console-log">로그 대기 중...<br></div>
 
     <div id="start-overlay">
-        <h2>V-SLAM Final Fix</h2>
+        <h2>V-SLAM Ultimate</h2>
         <div class="loader" id="loader"></div>
-        <div id="status-text">엔진 로딩 중...</div>
+        <div id="status-text">엔진 준비 중...</div>
         <button id="btn-start">📷 카메라 시작</button>
     </div>
 
@@ -75,16 +76,14 @@
             }
         }
 
-        // OpenCV 로딩 콜백
+        // OpenCV 로딩
         window.onOpenCvReady = function() {
-            log("✅ OpenCV 스크립트 로드됨.");
-            document.getElementById('status-text').innerText = "초기화 중...";
+            log("✅ 스크립트 로드됨.");
             checkOpenCv();
         };
 
         function checkOpenCv() {
             const timer = setInterval(() => {
-                // cv 객체가 완전히 준비되었는지 확인
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
                     clearInterval(timer);
                     log("✅ 엔진 초기화 성공!");
@@ -94,12 +93,9 @@
                     const btn = document.getElementById('btn-start');
                     btn.style.display = 'block';
                     
-                    // 전역 함수 호출하도록 설정
                     btn.onclick = function() {
                         if(window.startCameraForce) {
                             window.startCameraForce();
-                        } else {
-                            alert("스크립트 로딩 지연. 잠시 후 다시 눌러주세요.");
                         }
                     };
                 }
@@ -116,103 +112,77 @@
         let srcMat, grayMat, oldGrayMat, p0, p1, st, err;
         let isCVRunning = false;
         let finalFeatures = [];
+        
+        // 현재 할당된 메모리 크기 추적용
+        let currentWidth = 0;
+        let currentHeight = 0;
 
-        // ★ 전역 객체(window)에 함수 등록 (ReferenceError 해결)
         window.startCameraForce = async function() {
-            log("--- 카메라 시작 요청 ---");
+            log("--- 카메라 시작 ---");
             document.getElementById('start-overlay').style.display = 'none';
             
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
 
             try {
-                // 단순하게 비디오만 요청
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: true, 
                     audio: false 
                 });
                 
-                log("1. 권한 획득 성공");
                 video.srcObject = stream;
-                
                 await video.play();
-                log("2. 재생 시작");
+                log("비디오 재생 중...");
                 
-                waitForSize();
+                // 엔진 가동 시작 (사이즈는 루프 안에서 맞춤)
+                startCV();
 
             } catch (err) {
                 log("❌ 에러: " + err.name);
-                alert("카메라 권한 오류: " + err.name);
+                alert("카메라 권한을 확인해주세요.");
                 document.getElementById('start-overlay').style.display = 'flex';
             }
         };
 
-        function waitForSize() {
-            // 비디오 크기가 0이 아닐 때까지 대기
-            if (video.videoWidth > 0 && video.videoHeight > 0) {
-                log(`3. 해상도: ${video.videoWidth}x${video.videoHeight}`);
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                document.getElementById('ui-controls').style.display = 'block';
-                startCV(video.videoWidth, video.videoHeight);
-            } else {
-                requestAnimationFrame(waitForSize);
-            }
-        }
-
-        function startCV(w, h) {
-            log("메모리 할당...");
+        function startCV() {
+            log("엔진 루프 시작...");
+            // 초기 캡처 객체 생성
             try {
-                // ★ SyntaxError 해결: delete 키워드 대신 .delete() 사용하고 변수는 null 처리
-                if(cap) { try{ cap.delete(); } catch(e){} cap = null; }
-                if(srcMat) { try{ srcMat.delete(); } catch(e){} srcMat = null; }
-                if(grayMat) { try{ grayMat.delete(); } catch(e){} grayMat = null; }
-                if(oldGrayMat) { try{ oldGrayMat.delete(); } catch(e){} oldGrayMat = null; }
-                if(p0) { try{ p0.delete(); } catch(e){} p0 = null; }
-                if(p1) { try{ p1.delete(); } catch(e){} p1 = null; }
-                
                 cap = new cv.VideoCapture(video);
-                srcMat = new cv.Mat(h, w, cv.CV_8UC4);
-                grayMat = new cv.Mat(h, w, cv.CV_8UC1);
-                oldGrayMat = new cv.Mat(h, w, cv.CV_8UC1);
-                p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
-
-                // 첫 프레임 테스트
-                cap.read(srcMat);
-                
-                cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
-                
-                let none = new cv.Mat();
-                cv.goodFeaturesToTrack(oldGrayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
-                none.delete();
-
-                log("🚀 V-SLAM 엔진 가동!");
-                isCVRunning = true;
-                process();
-            } catch (e) {
-                log("초기화 재시도... (" + e + ")");
-                // 에러 발생 시(Bad size 등) 현재 비디오 크기로 다시 시도
-                setTimeout(() => {
-                   if(video.videoWidth > 0 && video.videoHeight > 0) {
-                       startCV(video.videoWidth, video.videoHeight);
-                   }
-                }, 500);
+            } catch(e) {
+                log("VideoCapture 실패: " + e);
+                return;
             }
+            
+            isCVRunning = true;
+            process();
         }
 
         function process() {
             if(!isCVRunning) return;
+
+            // 1. 현재 비디오 크기 확인
+            const w = video.videoWidth;
+            const h = video.videoHeight;
+
+            // 비디오가 아직 준비 안 됐으면 대기
+            if(w === 0 || h === 0) {
+                requestAnimationFrame(process);
+                return;
+            }
+
             try {
-                // 비디오 크기가 바뀌었는지 매 프레임 체크 (가로/세로 전환 대응)
-                if(video.videoWidth !== srcMat.cols || video.videoHeight !== srcMat.rows) {
-                    log("⚠️ 해상도 변경 감지! 재설정...");
-                    isCVRunning = false;
-                    waitForSize();
-                    return;
+                // 2. 크기 변경 감지 (또는 초기화)
+                // 현재 할당된 메모리 크기와 실제 비디오 크기가 다르면 재할당
+                if (w !== currentWidth || h !== currentHeight) {
+                    log(`⚠️ 해상도 변경: ${currentWidth}x${currentHeight} -> ${w}x${h}`);
+                    reallocateMemory(w, h);
                 }
 
+                // 3. 프레임 읽기
                 cap.read(srcMat);
-                
+
+                // 4. 알고리즘 실행
                 cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
                 
                 if(p0.rows > 0) {
@@ -225,49 +195,88 @@
                             let nx = p1.data32F[i*2];
                             let ny = p1.data32F[i*2+1];
                             
-                            // 경계 체크 (화면 밖으로 나간 점 무시)
-                            if (nx >= 0 && nx < srcMat.cols && ny >= 0 && ny < srcMat.rows) {
+                            // 화면 밖으로 나간 점 제거
+                            if(nx >=0 && nx < w && ny >=0 && ny < h) {
                                 cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
-                                
-                                // 3D용 데이터 저장
-                                finalFeatures.push({ u: nx/srcMat.cols, v: ny/srcMat.rows });
+                                finalFeatures.push({ u: nx/w, v: ny/h });
                                 goodPoints.push(nx, ny);
                             }
                         }
                     }
                     cv.imshow('canvasOutput', srcMat);
                     
-                    // 점이 줄어들면 재추출
+                    // 점 부족하면 재추출
                     if(goodPoints.length < 30) {
-                        let none = new cv.Mat();
-                        cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
-                        none.delete();
+                        detectFeatures(grayMat);
                     } else { 
                         p1.copyTo(p0); 
                     }
                 } else {
-                    let none = new cv.Mat();
-                    cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
-                    none.delete();
+                    detectFeatures(grayMat);
                 }
+                
                 grayMat.copyTo(oldGrayMat);
-                requestAnimationFrame(process);
+                
             } catch(e) {
-                // 런타임 에러 발생 시 로그 찍고 계속 진행 (멈춤 방지)
-                // log("Runtime Error: " + e);
-                requestAnimationFrame(process);
+                // 에러 발생 시 로그만 찍고 멈추지 않음 (다음 프레임 재시도)
+                // log("Frame Skip: " + e); 
             }
+
+            requestAnimationFrame(process);
+        }
+
+        // 메모리 재할당 함수 (핵심)
+        function reallocateMemory(w, h) {
+            try {
+                // 기존 메모리 안전하게 해제
+                if(srcMat) srcMat.delete();
+                if(grayMat) grayMat.delete();
+                if(oldGrayMat) oldGrayMat.delete();
+                if(p0) p0.delete();
+                if(p1) p1.delete();
+                if(st) st.delete();
+                if(err) err.delete();
+
+                // 캔버스 크기 동기화
+                canvas.width = w;
+                canvas.height = h;
+
+                // 새 메모리 할당
+                srcMat = new cv.Mat(h, w, cv.CV_8UC4);
+                grayMat = new cv.Mat(h, w, cv.CV_8UC1);
+                oldGrayMat = new cv.Mat(h, w, cv.CV_8UC1);
+                p0 = new cv.Mat(); 
+                p1 = new cv.Mat(); 
+                st = new cv.Mat(); 
+                err = new cv.Mat();
+
+                // 추적 상태 갱신
+                currentWidth = w;
+                currentHeight = h;
+                
+                log("✅ 메모리 재할당 완료 (" + w + "x" + h + ")");
+
+                // 캡처 객체도 리셋 (가끔 내부 버퍼 문제 생김)
+                // if(cap) delete cap;
+                // cap = new cv.VideoCapture(video);
+
+            } catch(e) {
+                log("❌ 메모리 할당 실패: " + e);
+            }
+        }
+
+        function detectFeatures(gray) {
+            let none = new cv.Mat();
+            cv.goodFeaturesToTrack(gray, p0, 100, 0.3, 7, none, 7, false, 0.04);
+            none.delete();
         }
 
         // 3D 변환 이벤트
         document.getElementById('btn-visualize').addEventListener('click', () => {
-            log("3D 변환 모드 전환");
+            log("3D 변환 모드");
             isCVRunning = false;
             
-            // 카메라 정지
-            if(video.srcObject) {
-                video.srcObject.getTracks().forEach(t => t.stop());
-            }
+            if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
 
             document.getElementById('canvasOutput').style.display = 'none';
             document.getElementById('ui-controls').style.display = 'none';
@@ -291,10 +300,9 @@
             const controls = new OrbitControls(camera, renderer.domElement);
             scene.add(new THREE.GridHelper(10, 20));
             scene.add(new THREE.AxesHelper(2));
-            scene.add(new THREE.AmbientLight(0xffffff, 1));
-            
             const light = new THREE.DirectionalLight(0xffffff, 1);
             light.position.set(5, 10, 5); scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 1));
 
             if(finalFeatures.length > 0) {
                 const geo = new THREE.SphereGeometry(0.1);
@@ -308,7 +316,7 @@
                 finalFeatures.forEach((f, i) => {
                     const x = (f.u - 0.5) * sx;
                     const z = -(f.v - 0.5) * sy;
-                    const y = (Math.random()-0.5) * 1.5; // 가상의 높이
+                    const y = (Math.random()-0.5) * 1.5;
                     dummy.position.set(x, y, z);
                     dummy.updateMatrix();
                     mesh.setMatrixAt(i, dummy.matrix);
