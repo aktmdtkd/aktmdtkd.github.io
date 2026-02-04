@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Camera Diagnostic Fix</title>
+    <title>V-SLAM Fixed</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
@@ -20,33 +20,20 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
 
-        /* 스피너 */
-        .spinner {
-            width: 40px; height: 40px;
-            border: 4px solid #333; border-top: 4px solid #ff0055; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 20px;
+        .loader {
+            border: 5px solid #333; border-top: 5px solid #00ff00; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        #loading-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-        #sub-text { font-size: 14px; color: #aaa; text-align: center; }
 
         #btn-start {
             padding: 20px 40px; font-size: 20px; font-weight: bold; 
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
-            display: none; box-shadow: 0 0 20px rgba(0, 136, 255, 0.5); margin-top: 20px;
+            display: none; margin-top: 20px;
         }
 
-        /* 비디오 투명 처리 */
-        #videoInput { 
-            position: absolute; top: 0; left: 0; width: 1px; height: 1px; 
-            opacity: 0; z-index: -1;
-        }
-
-        #canvasOutput { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            object-fit: contain; background: black; z-index: 500;
-        }
+        #videoInput { position: absolute; opacity: 0; z-index: -1; }
+        #canvasOutput { width: 100%; height: 100%; object-fit: contain; background: #111; }
 
         #ui-controls {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
@@ -56,331 +43,275 @@
             padding: 15px 30px; font-size: 16px; font-weight: bold; 
             background: #ff4757; color: white; border: none; border-radius: 30px; 
         }
-        
-        #threejs-container { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
-            display: none; background: #222;
-        }
+        #threejs-container { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #222; z-index: 600; }
     </style>
-    
+
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
     </script>
 </head>
 <body>
-    <div id="console-log">시스템 점검 중...<br></div>
+    <div id="console-log">로그 대기 중...<br></div>
 
     <div id="start-overlay">
-        <h2 style="margin-bottom: 20px;">시스템 진단 모드</h2>
-        
-        <div id="loading-area">
-            <div class="spinner"></div>
-            <div id="loading-text">엔진 받는 중...</div>
-            <div id="sub-text">공식 서버 연결</div>
-        </div>
-
-        <button id="btn-start">📷 카메라 강제 시작</button>
+        <h2>V-SLAM Final Fix</h2>
+        <div class="loader" id="loader"></div>
+        <div id="status-text">엔진 로딩 중...</div>
+        <button id="btn-start">📷 카메라 시작</button>
     </div>
 
     <video id="videoInput" playsinline webkit-playsinline></video>
     <canvas id="canvasOutput"></canvas>
 
-    <div id="ui-controls">
-        <button id="btn-visualize">⏹ STOP & 3D VIEW</button>
-    </div>
+    <div id="ui-controls"><button id="btn-visualize">⏹ 3D 변환</button></div>
     <div id="threejs-container"></div>
 
     <script>
-        function updateLog(msg) {
+        function log(msg) {
             const el = document.getElementById('console-log');
-            const time = new Date().toLocaleTimeString();
-            el.innerHTML += `[${time}] ${msg}<br>`;
-            el.scrollTop = el.scrollHeight;
+            if(el) {
+                el.innerHTML += `> ${msg}<br>`;
+                el.scrollTop = el.scrollHeight;
+            }
         }
 
-        // --- 초기 환경 진단 ---
-        window.onload = function() {
-            if (!window.isSecureContext) {
-                updateLog("⚠️ 경고: HTTPS가 아닙니다 (Not Secure Context).");
-                updateLog("카메라가 작동하지 않을 수 있습니다.");
-                alert("주의: HTTPS 환경이 아닙니다. 카메라는 HTTPS 또는 localhost에서만 작동합니다.");
-            } else {
-                updateLog("✅ 보안 컨텍스트 확인됨 (HTTPS/Localhost).");
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                updateLog("❌ 치명적 오류: 카메라 API를 찾을 수 없습니다.");
-                updateLog("브라우저 설정에서 카메라 권한이 차단되었는지 확인하세요.");
-            } else {
-                updateLog("✅ 카메라 API 준비됨.");
-            }
+        // OpenCV 로딩 콜백
+        window.onOpenCvReady = function() {
+            log("✅ OpenCV 스크립트 로드됨.");
+            document.getElementById('status-text').innerText = "초기화 중...";
+            checkOpenCv();
         };
 
-        // --- OpenCV 로드 ---
-        window.onOpenCvSuccess = function() {
-            updateLog("✅ 엔진 다운로드 완료. 컴파일 중...");
-            document.getElementById('loading-text').innerText = "엔진 시동 중...";
-            checkRuntime();
-        };
-
-        window.onOpenCvFail = function() {
-            updateLog("❌ 엔진 다운로드 실패.");
-            document.getElementById('loading-text').innerText = "연결 실패";
-            document.getElementById('loading-text').style.color = "red";
-        };
-
-        function checkRuntime() {
-            let checks = 0;
+        function checkOpenCv() {
             const timer = setInterval(() => {
-                checks++;
+                // cv 객체가 완전히 준비되었는지 확인
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
                     clearInterval(timer);
-                    updateLog("✅ 엔진 초기화 완료!");
-                    finishLoading();
-                } else if (checks > 60) {
-                    updateLog("...초기화 대기 중...");
+                    log("✅ 엔진 초기화 성공!");
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('status-text').innerText = "준비 완료";
+                    
+                    const btn = document.getElementById('btn-start');
+                    btn.style.display = 'block';
+                    
+                    // 전역 함수 호출하도록 설정
+                    btn.onclick = function() {
+                        if(window.startCameraForce) {
+                            window.startCameraForce();
+                        } else {
+                            alert("스크립트 로딩 지연. 잠시 후 다시 눌러주세요.");
+                        }
+                    };
                 }
             }, 500);
         }
-
-        function finishLoading() {
-            document.getElementById('loading-area').style.display = 'none';
-            const btn = document.getElementById('btn-start');
-            btn.style.display = 'block';
-            
-            btn.onclick = function() {
-                updateLog("--- [카메라 요청 프로세스 시작] ---");
-                startCameraPipeline();
-            };
-        }
     </script>
-    
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvSuccess()" onerror="onOpenCvFail()"></script>
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()"></script>
 
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        let video, canvas, ctx, cap;
+        let video, canvas, cap;
         let srcMat, grayMat, oldGrayMat, p0, p1, st, err;
         let isCVRunning = false;
         let finalFeatures = [];
-        let scene, camera, renderer, controls, pointCloud;
 
-        window.startCameraPipeline = async function() {
-            document.getElementById('start-overlay').style.display = 'none'; 
+        // ★ 전역 객체(window)에 함수 등록 (ReferenceError 해결)
+        window.startCameraForce = async function() {
+            log("--- 카메라 시작 요청 ---");
+            document.getElementById('start-overlay').style.display = 'none';
+            
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
-            
-            updateLog("1. 권한 요청을 시도합니다...");
-
-            // ★ 타임아웃 설정: 5초 안에 응답 없으면 경고
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Timeout: 5초간 응답 없음")), 5000)
-            );
 
             try {
-                // 제약 조건 최대한 낮게 설정 (후면 카메라 우선, 실패시 아무거나)
-                const constraints = { 
-                    video: { facingMode: 'environment' }, 
+                // 단순하게 비디오만 요청
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true, 
                     audio: false 
-                };
-
-                // getUserMedia와 타임아웃 레이싱
-                const stream = await Promise.race([
-                    navigator.mediaDevices.getUserMedia(constraints),
-                    timeoutPromise
-                ]);
-
-                updateLog("2. 스트림 획득 성공! (" + stream.id + ")");
+                });
+                
+                log("1. 권한 획득 성공");
                 video.srcObject = stream;
                 
-                // 비디오 재생 시도
-                try {
-                    await video.play();
-                    updateLog("3. 비디오 재생 시작.");
-                    waitForVideoSize();
-                } catch (playErr) {
-                    updateLog("❌ 비디오 재생 에러: " + playErr);
-                }
+                await video.play();
+                log("2. 재생 시작");
+                
+                waitForSize();
 
             } catch (err) {
-                updateLog("❌ 실패: " + err.message);
-                console.error(err);
-                
-                if (err.message.includes("Timeout")) {
-                    alert("카메라 응답이 없습니다.\n1. 이미 권한 거부를 누르셨나요?\n2. 다른 앱이 카메라를 쓰고 있나요?\n3. 브라우저를 완전히 껐다 켜보세요.");
-                } else {
-                    alert("카메라 권한 오류:\n" + err.name + "\n설정에서 권한을 초기화해주세요.");
-                }
-                
-                // 다시 시도할 수 있게 화면 복구
+                log("❌ 에러: " + err.name);
+                alert("카메라 권한 오류: " + err.name);
                 document.getElementById('start-overlay').style.display = 'flex';
             }
-        }
+        };
 
-        function waitForVideoSize() {
-            const w = video.videoWidth;
-            const h = video.videoHeight;
-            if (w && h) {
-                updateLog(`📏 해상도 감지됨: ${w}x${h}`);
-                canvas.width = w; canvas.height = h;
+        function waitForSize() {
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+                log(`3. 해상도: ${video.videoWidth}x${video.videoHeight}`);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
                 document.getElementById('ui-controls').style.display = 'block';
-                startOpenCVProcessing(w, h);
+                startCV(video.videoWidth, video.videoHeight);
             } else {
-                updateLog("...해상도 대기 중...");
-                setTimeout(waitForVideoSize, 500);
+                requestAnimationFrame(waitForSize);
             }
         }
 
-        function startOpenCVProcessing(width, height) {
-            updateLog("메모리 구조체 생성...");
+        function startCV(w, h) {
+            log("메모리 할당...");
             try {
-                if(cap) delete cap;
+                // ★ SyntaxError 해결: delete 키워드 대신 .delete() 사용
+                if(cap) { try{ cap.delete(); } catch(e){} }
+                
                 cap = new cv.VideoCapture(video);
-                srcMat = new cv.Mat(height, width, cv.CV_8UC4);
-                grayMat = new cv.Mat(height, width, cv.CV_8UC1);
-                oldGrayMat = new cv.Mat(height, width, cv.CV_8UC1);
+                srcMat = new cv.Mat(h, w, cv.CV_8UC4);
+                grayMat = new cv.Mat(h, w, cv.CV_8UC1);
+                oldGrayMat = new cv.Mat(h, w, cv.CV_8UC1);
                 p0 = new cv.Mat(); p1 = new cv.Mat(); st = new cv.Mat(); err = new cv.Mat();
 
+                // 첫 프레임 테스트
                 cap.read(srcMat);
-                // Mat 생성 크기와 비디오 크기 불일치 체크
-                if (srcMat.cols !== width || srcMat.rows !== height) {
-                    updateLog("⚠️ 크기 불일치. 재시작.");
-                    startOpenCVProcessing(width, height); // 재귀 재시도
-                    return;
-                }
+                if(srcMat.cols !== w) throw new Error("Size Mismatch");
 
                 cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
                 
                 let none = new cv.Mat();
-                cv.goodFeaturesToTrack(oldGrayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
+                cv.goodFeaturesToTrack(oldGrayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
                 none.delete();
 
-                updateLog(`🚀 V-SLAM 엔진 정상 가동!`);
+                log("🚀 V-SLAM 엔진 가동!");
                 isCVRunning = true;
-                requestAnimationFrame(processVideoFrame);
+                process();
             } catch (e) {
-                updateLog("초기화 중 에러: " + e);
-                setTimeout(() => startOpenCVProcessing(width, height), 1000);
+                log("초기화 재시도... (" + e + ")");
+                // 변수 해제 후 재시도
+                setTimeout(() => startCV(w, h), 500);
             }
         }
 
-        function processVideoFrame() {
-            if (!isCVRunning) return;
+        function process() {
+            if(!isCVRunning) return;
             try {
                 cap.read(srcMat);
-                if (srcMat.cols !== video.videoWidth) {
-                    isCVRunning = false; waitForVideoSize(); return;
+                // 해상도 변경 감지
+                if(srcMat.cols !== video.videoWidth) { 
+                    isCVRunning = false; waitForSize(); return; 
                 }
-                
-                cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
 
-                if (p0.rows > 0) {
+                cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
+                
+                if(p0.rows > 0) {
                     cv.calcOpticalFlowPyrLK(oldGrayMat, grayMat, p0, p1, st, err);
+                    finalFeatures = [];
                     let goodPoints = [];
-                    finalFeatures = []; 
-                    for (let i = 0; i < p0.rows; i++) {
-                        if (st.data[i] === 1) {
-                            let newX = p1.data32F[i * 2];
-                            let newY = p1.data32F[i * 2 + 1];
-                            cv.circle(srcMat, new cv.Point(newX, newY), 5, [0, 255, 0, 255], -1);
-                            finalFeatures.push({ u: newX / srcMat.cols, v: newY / srcMat.rows });
-                            goodPoints.push(newX, newY);
+                    
+                    for(let i=0; i<p0.rows; i++) {
+                        if(st.data[i] === 1) {
+                            let nx = p1.data32F[i*2];
+                            let ny = p1.data32F[i*2+1];
+                            cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
+                            
+                            // 3D용 데이터 저장
+                            finalFeatures.push({ u: nx/srcMat.cols, v: ny/srcMat.rows });
+                            goodPoints.push(nx, ny);
                         }
                     }
                     cv.imshow('canvasOutput', srcMat);
-                    if (goodPoints.length < 30) {
+                    
+                    // 점이 줄어들면 재추출
+                    if(goodPoints.length < 30) {
                         let none = new cv.Mat();
-                        cv.goodFeaturesToTrack(grayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
+                        cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
                         none.delete();
-                    } else { p1.copyTo(p0); }
+                    } else { 
+                        p1.copyTo(p0); 
+                    }
                 } else {
-                     let none = new cv.Mat();
-                     cv.goodFeaturesToTrack(grayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
-                     none.delete();
+                    let none = new cv.Mat();
+                    cv.goodFeaturesToTrack(grayMat, p0, 100, 0.3, 7, none, 7, false, 0.04);
+                    none.delete();
                 }
                 grayMat.copyTo(oldGrayMat);
-                requestAnimationFrame(processVideoFrame);
-            } catch (e) {
-                // 에러 무시
-                requestAnimationFrame(processVideoFrame);
+                requestAnimationFrame(process);
+            } catch(e) {
+                // 에러 발생시 무시하고 계속 진행 (강건성 확보)
+                requestAnimationFrame(process);
             }
         }
 
+        // 3D 변환 이벤트
         document.getElementById('btn-visualize').addEventListener('click', () => {
-            updateLog("🛑 3D 변환 시작");
+            log("3D 변환 모드 전환");
             isCVRunning = false;
-            if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-            document.getElementById('canvasOutput').style.display = 'none'; // 2D 캔버스 숨김
+            
+            // 카메라 정지
+            if(video.srcObject) {
+                video.srcObject.getTracks().forEach(t => t.stop());
+            }
+
+            document.getElementById('canvasOutput').style.display = 'none';
             document.getElementById('ui-controls').style.display = 'none';
             document.getElementById('threejs-container').style.display = 'block';
+            
             initThreeJS();
         });
 
         function initThreeJS() {
             const container = document.getElementById('threejs-container');
-            scene = new THREE.Scene();
+            const scene = new THREE.Scene();
             scene.background = new THREE.Color(0x222222);
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 5, 5); camera.lookAt(0, 0, 0);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 5); camera.lookAt(0,0,0);
+            
+            const renderer = new THREE.WebGLRenderer({antialias:true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderer.domElement);
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            scene.add(new THREE.GridHelper(10, 20, 0x888888, 0x444444));
+            
+            const controls = new OrbitControls(camera, renderer.domElement);
+            scene.add(new THREE.GridHelper(10, 20));
             scene.add(new THREE.AxesHelper(2));
+            scene.add(new THREE.AmbientLight(0xffffff, 1));
+            
             const light = new THREE.DirectionalLight(0xffffff, 1);
             light.position.set(5, 10, 5); scene.add(light);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            createPointCloud();
-            animate3D();
-        }
 
-        function createPointCloud() {
-            if (finalFeatures.length === 0) { updateLog("⚠️ 특징점 없음"); return; }
-            const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-            const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-            pointCloud = new THREE.InstancedMesh(geometry, material, finalFeatures.length);
-            const dummy = new THREE.Object3D();
-            const color = new THREE.Color();
-            const SCALE_X = 5.0; 
-            const SCALE_Y = SCALE_X * (window.innerHeight / window.innerWidth); 
-
-            for(let i=0; i<finalFeatures.length; i++) {
-                const f = finalFeatures[i];
-                const x = (f.u - 0.5) * SCALE_X;
-                const y = -(f.v - 0.5) * SCALE_Y;
-                const z = (Math.random() - 0.5) * 1.5;
-                dummy.position.set(x, z, y); 
-                dummy.updateMatrix();
-                pointCloud.setMatrixAt(i, dummy.matrix);
-                color.setHSL(Math.random(), 1.0, 0.5);
-                pointCloud.setColorAt(i, color);
+            if(finalFeatures.length > 0) {
+                const geo = new THREE.SphereGeometry(0.1);
+                const mat = new THREE.MeshBasicMaterial({color: 0x00ff00});
+                const mesh = new THREE.InstancedMesh(geo, mat, finalFeatures.length);
+                const dummy = new THREE.Object3D();
+                const color = new THREE.Color();
+                
+                const sx = 5.0, sy = 5.0 * (window.innerHeight/window.innerWidth);
+                
+                finalFeatures.forEach((f, i) => {
+                    const x = (f.u - 0.5) * sx;
+                    const z = -(f.v - 0.5) * sy;
+                    const y = (Math.random()-0.5) * 1.5; // 가상의 높이
+                    dummy.position.set(x, y, z);
+                    dummy.updateMatrix();
+                    mesh.setMatrixAt(i, dummy.matrix);
+                    
+                    color.setHSL(Math.random(), 1.0, 0.5);
+                    mesh.setColorAt(i, color);
+                });
+                mesh.instanceMatrix.needsUpdate = true;
+                mesh.instanceColor.needsUpdate = true;
+                scene.add(mesh);
             }
-            pointCloud.instanceMatrix.needsUpdate = true;
-            pointCloud.instanceColor.needsUpdate = true;
-            scene.add(pointCloud);
-        }
-
-        function animate3D() {
-            requestAnimationFrame(animate3D);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-        window.addEventListener('resize', () => {
-            if(camera && renderer) {
+            
+            function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+            animate();
+            
+            window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-        });
+            });
+        }
     </script>
 </body>
 </html>
