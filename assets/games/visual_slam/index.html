@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Fixed</title>
+    <title>V-SLAM Final Fix</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
@@ -148,6 +148,7 @@
         };
 
         function waitForSize() {
+            // 비디오 크기가 0이 아닐 때까지 대기
             if (video.videoWidth > 0 && video.videoHeight > 0) {
                 log(`3. 해상도: ${video.videoWidth}x${video.videoHeight}`);
                 canvas.width = video.videoWidth;
@@ -162,8 +163,13 @@
         function startCV(w, h) {
             log("메모리 할당...");
             try {
-                // ★ SyntaxError 해결: delete 키워드 대신 .delete() 사용
-                if(cap) { try{ cap.delete(); } catch(e){} }
+                // ★ SyntaxError 해결: delete 키워드 대신 .delete() 사용하고 변수는 null 처리
+                if(cap) { try{ cap.delete(); } catch(e){} cap = null; }
+                if(srcMat) { try{ srcMat.delete(); } catch(e){} srcMat = null; }
+                if(grayMat) { try{ grayMat.delete(); } catch(e){} grayMat = null; }
+                if(oldGrayMat) { try{ oldGrayMat.delete(); } catch(e){} oldGrayMat = null; }
+                if(p0) { try{ p0.delete(); } catch(e){} p0 = null; }
+                if(p1) { try{ p1.delete(); } catch(e){} p1 = null; }
                 
                 cap = new cv.VideoCapture(video);
                 srcMat = new cv.Mat(h, w, cv.CV_8UC4);
@@ -173,8 +179,7 @@
 
                 // 첫 프레임 테스트
                 cap.read(srcMat);
-                if(srcMat.cols !== w) throw new Error("Size Mismatch");
-
+                
                 cv.cvtColor(srcMat, oldGrayMat, cv.COLOR_RGBA2GRAY);
                 
                 let none = new cv.Mat();
@@ -186,20 +191,28 @@
                 process();
             } catch (e) {
                 log("초기화 재시도... (" + e + ")");
-                // 변수 해제 후 재시도
-                setTimeout(() => startCV(w, h), 500);
+                // 에러 발생 시(Bad size 등) 현재 비디오 크기로 다시 시도
+                setTimeout(() => {
+                   if(video.videoWidth > 0 && video.videoHeight > 0) {
+                       startCV(video.videoWidth, video.videoHeight);
+                   }
+                }, 500);
             }
         }
 
         function process() {
             if(!isCVRunning) return;
             try {
-                cap.read(srcMat);
-                // 해상도 변경 감지
-                if(srcMat.cols !== video.videoWidth) { 
-                    isCVRunning = false; waitForSize(); return; 
+                // 비디오 크기가 바뀌었는지 매 프레임 체크 (가로/세로 전환 대응)
+                if(video.videoWidth !== srcMat.cols || video.videoHeight !== srcMat.rows) {
+                    log("⚠️ 해상도 변경 감지! 재설정...");
+                    isCVRunning = false;
+                    waitForSize();
+                    return;
                 }
 
+                cap.read(srcMat);
+                
                 cv.cvtColor(srcMat, grayMat, cv.COLOR_RGBA2GRAY);
                 
                 if(p0.rows > 0) {
@@ -211,11 +224,15 @@
                         if(st.data[i] === 1) {
                             let nx = p1.data32F[i*2];
                             let ny = p1.data32F[i*2+1];
-                            cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
                             
-                            // 3D용 데이터 저장
-                            finalFeatures.push({ u: nx/srcMat.cols, v: ny/srcMat.rows });
-                            goodPoints.push(nx, ny);
+                            // 경계 체크 (화면 밖으로 나간 점 무시)
+                            if (nx >= 0 && nx < srcMat.cols && ny >= 0 && ny < srcMat.rows) {
+                                cv.circle(srcMat, new cv.Point(nx, ny), 5, [0, 255, 0, 255], -1);
+                                
+                                // 3D용 데이터 저장
+                                finalFeatures.push({ u: nx/srcMat.cols, v: ny/srcMat.rows });
+                                goodPoints.push(nx, ny);
+                            }
                         }
                     }
                     cv.imshow('canvasOutput', srcMat);
@@ -236,7 +253,8 @@
                 grayMat.copyTo(oldGrayMat);
                 requestAnimationFrame(process);
             } catch(e) {
-                // 에러 발생시 무시하고 계속 진행 (강건성 확보)
+                // 런타임 에러 발생 시 로그 찍고 계속 진행 (멈춤 방지)
+                // log("Runtime Error: " + e);
                 requestAnimationFrame(process);
             }
         }
