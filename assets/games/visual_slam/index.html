@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>V-SLAM Camera Fix</title>
+    <title>Camera Diagnostic Fix</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
         
         #console-log {
-            position: absolute; top: 0; left: 0; width: 100%; height: 150px;
-            background: rgba(0,0,0,0.7); pointer-events: none; z-index: 999;
-            padding: 10px; box-sizing: border-box; font-size: 12px; color: #ffff00;
-            overflow-y: auto; white-space: pre-wrap;
+            position: absolute; top: 0; left: 0; width: 100%; height: 200px;
+            background: rgba(0,0,0,0.8); pointer-events: none; z-index: 999;
+            padding: 10px; box-sizing: border-box; font-size: 13px; color: #ffff00;
+            overflow-y: auto; white-space: pre-wrap; border-bottom: 2px solid #555;
         }
 
         #start-overlay {
@@ -20,31 +20,29 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
 
-        /* 로딩 애니메이션 */
+        /* 스피너 */
         .spinner {
             width: 40px; height: 40px;
-            border: 4px solid #333; border-top: 4px solid #00ff00; border-radius: 50%;
+            border: 4px solid #333; border-top: 4px solid #ff0055; border-radius: 50%;
             animation: spin 1s linear infinite; margin-bottom: 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         #loading-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-        #sub-text { font-size: 14px; color: #aaa; }
+        #sub-text { font-size: 14px; color: #aaa; text-align: center; }
 
         #btn-start {
             padding: 20px 40px; font-size: 20px; font-weight: bold; 
             background: #0088ff; color: white; border: none; border-radius: 10px; cursor: pointer;
-            display: none; /* 로딩 전 숨김 */
-            box-shadow: 0 0 20px rgba(0, 136, 255, 0.5);
+            display: none; box-shadow: 0 0 20px rgba(0, 136, 255, 0.5); margin-top: 20px;
         }
 
-        /* ★ 핵심 수정: 비디오를 지우지 말고 투명하게 만듦 */
+        /* 비디오 투명 처리 */
         #videoInput { 
             position: absolute; top: 0; left: 0; width: 1px; height: 1px; 
-            opacity: 0; z-index: -1; /* 뒤로 숨김 */
+            opacity: 0; z-index: -1;
         }
 
-        /* 캔버스가 실제 화면 역할 */
         #canvasOutput { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             object-fit: contain; background: black; z-index: 500;
@@ -58,13 +56,13 @@
             padding: 15px 30px; font-size: 16px; font-weight: bold; 
             background: #ff4757; color: white; border: none; border-radius: 30px; 
         }
-
+        
         #threejs-container { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 600; 
             display: none; background: #222;
         }
     </style>
-
+    
     <script type="importmap">
         {
             "imports": {
@@ -75,18 +73,18 @@
     </script>
 </head>
 <body>
-    <div id="console-log">시스템 초기화 중...<br></div>
+    <div id="console-log">시스템 점검 중...<br></div>
 
     <div id="start-overlay">
-        <h2 style="margin-bottom: 30px;">V-SLAM Core</h2>
+        <h2 style="margin-bottom: 20px;">시스템 진단 모드</h2>
         
         <div id="loading-area">
             <div class="spinner"></div>
-            <div id="loading-text">엔진 다운로드 중...</div>
-            <div id="sub-text">공식 서버 연결 중</div>
+            <div id="loading-text">엔진 받는 중...</div>
+            <div id="sub-text">공식 서버 연결</div>
         </div>
 
-        <button id="btn-start">📷 카메라 시작</button>
+        <button id="btn-start">📷 카메라 강제 시작</button>
     </div>
 
     <video id="videoInput" playsinline webkit-playsinline></video>
@@ -95,7 +93,6 @@
     <div id="ui-controls">
         <button id="btn-visualize">⏹ STOP & 3D VIEW</button>
     </div>
-
     <div id="threejs-container"></div>
 
     <script>
@@ -106,15 +103,33 @@
             el.scrollTop = el.scrollHeight;
         }
 
+        // --- 초기 환경 진단 ---
+        window.onload = function() {
+            if (!window.isSecureContext) {
+                updateLog("⚠️ 경고: HTTPS가 아닙니다 (Not Secure Context).");
+                updateLog("카메라가 작동하지 않을 수 있습니다.");
+                alert("주의: HTTPS 환경이 아닙니다. 카메라는 HTTPS 또는 localhost에서만 작동합니다.");
+            } else {
+                updateLog("✅ 보안 컨텍스트 확인됨 (HTTPS/Localhost).");
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                updateLog("❌ 치명적 오류: 카메라 API를 찾을 수 없습니다.");
+                updateLog("브라우저 설정에서 카메라 권한이 차단되었는지 확인하세요.");
+            } else {
+                updateLog("✅ 카메라 API 준비됨.");
+            }
+        };
+
         // --- OpenCV 로드 ---
         window.onOpenCvSuccess = function() {
-            updateLog("✅ 다운로드 완료. 컴파일 중...");
-            document.getElementById('loading-text').innerText = "엔진 시동 거는 중...";
+            updateLog("✅ 엔진 다운로드 완료. 컴파일 중...");
+            document.getElementById('loading-text').innerText = "엔진 시동 중...";
             checkRuntime();
         };
 
         window.onOpenCvFail = function() {
-            updateLog("❌ 다운로드 실패.");
+            updateLog("❌ 엔진 다운로드 실패.");
             document.getElementById('loading-text').innerText = "연결 실패";
             document.getElementById('loading-text').style.color = "red";
         };
@@ -125,11 +140,10 @@
                 checks++;
                 if (typeof cv !== 'undefined' && cv.getBuildInformation) {
                     clearInterval(timer);
-                    updateLog("✅ 엔진 준비 완료!");
+                    updateLog("✅ 엔진 초기화 완료!");
                     finishLoading();
-                } else if (checks > 120) {
-                    clearInterval(timer);
-                    alert("초기화 실패. 새로고침 하세요.");
+                } else if (checks > 60) {
+                    updateLog("...초기화 대기 중...");
                 }
             }, 500);
         }
@@ -139,10 +153,8 @@
             const btn = document.getElementById('btn-start');
             btn.style.display = 'block';
             
-            // ★ 클릭 이벤트 리스너 확실하게 연결
             btn.onclick = function() {
-                console.log("버튼 클릭됨!");
-                updateLog("버튼 클릭됨. 카메라 요청 시작...");
+                updateLog("--- [카메라 요청 프로세스 시작] ---");
                 startCameraPipeline();
             };
         }
@@ -165,31 +177,49 @@
             video = document.getElementById('videoInput');
             canvas = document.getElementById('canvasOutput');
             
-            updateLog("권한 요청 중...");
+            updateLog("1. 권한 요청을 시도합니다...");
+
+            // ★ 타임아웃 설정: 5초 안에 응답 없으면 경고
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Timeout: 5초간 응답 없음")), 5000)
+            );
 
             try {
-                // ★ 카메라 제약 조건 완화 (더 잘 붙음)
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' },
-                    audio: false
-                });
+                // 제약 조건 최대한 낮게 설정 (후면 카메라 우선, 실패시 아무거나)
+                const constraints = { 
+                    video: { facingMode: 'environment' }, 
+                    audio: false 
+                };
 
-                updateLog("스트림 획득 성공.");
+                // getUserMedia와 타임아웃 레이싱
+                const stream = await Promise.race([
+                    navigator.mediaDevices.getUserMedia(constraints),
+                    timeoutPromise
+                ]);
+
+                updateLog("2. 스트림 획득 성공! (" + stream.id + ")");
                 video.srcObject = stream;
                 
-                // ★ 비디오 재생 프로미스 처리
+                // 비디오 재생 시도
                 try {
                     await video.play();
-                    updateLog("비디오 재생 시작됨.");
+                    updateLog("3. 비디오 재생 시작.");
                     waitForVideoSize();
                 } catch (playErr) {
-                    updateLog("❌ 비디오 재생 실패: " + playErr);
+                    updateLog("❌ 비디오 재생 에러: " + playErr);
                 }
 
             } catch (err) {
-                updateLog("❌ 권한 거부됨: " + err.name);
-                alert("카메라 권한 허용이 필요합니다. (설정 확인)");
-                // 화면 다시 띄우기
+                updateLog("❌ 실패: " + err.message);
+                console.error(err);
+                
+                if (err.message.includes("Timeout")) {
+                    alert("카메라 응답이 없습니다.\n1. 이미 권한 거부를 누르셨나요?\n2. 다른 앱이 카메라를 쓰고 있나요?\n3. 브라우저를 완전히 껐다 켜보세요.");
+                } else {
+                    alert("카메라 권한 오류:\n" + err.name + "\n설정에서 권한을 초기화해주세요.");
+                }
+                
+                // 다시 시도할 수 있게 화면 복구
                 document.getElementById('start-overlay').style.display = 'flex';
             }
         }
@@ -198,18 +228,18 @@
             const w = video.videoWidth;
             const h = video.videoHeight;
             if (w && h) {
-                updateLog(`📏 해상도: ${w}x${h}`);
+                updateLog(`📏 해상도 감지됨: ${w}x${h}`);
                 canvas.width = w; canvas.height = h;
                 document.getElementById('ui-controls').style.display = 'block';
                 startOpenCVProcessing(w, h);
             } else {
-                updateLog("...해상도 감지 중...");
-                setTimeout(waitForVideoSize, 500); // 0.5초 간격
+                updateLog("...해상도 대기 중...");
+                setTimeout(waitForVideoSize, 500);
             }
         }
 
         function startOpenCVProcessing(width, height) {
-            updateLog("메모리 할당...");
+            updateLog("메모리 구조체 생성...");
             try {
                 if(cap) delete cap;
                 cap = new cv.VideoCapture(video);
@@ -232,12 +262,11 @@
                 cv.goodFeaturesToTrack(oldGrayMat, p0, 150, 0.3, 7, none, 7, false, 0.04);
                 none.delete();
 
-                updateLog(`🚀 V-SLAM 엔진 가동!`);
+                updateLog(`🚀 V-SLAM 엔진 정상 가동!`);
                 isCVRunning = true;
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
                 updateLog("초기화 중 에러: " + e);
-                // 재시도 로직
                 setTimeout(() => startOpenCVProcessing(width, height), 1000);
             }
         }
@@ -246,7 +275,6 @@
             if (!isCVRunning) return;
             try {
                 cap.read(srcMat);
-                // 해상도 변경 감지 시 중단
                 if (srcMat.cols !== video.videoWidth) {
                     isCVRunning = false; waitForVideoSize(); return;
                 }
@@ -280,7 +308,7 @@
                 grayMat.copyTo(oldGrayMat);
                 requestAnimationFrame(processVideoFrame);
             } catch (e) {
-                // 에러 무시하고 계속 진행 (강건성)
+                // 에러 무시
                 requestAnimationFrame(processVideoFrame);
             }
         }
