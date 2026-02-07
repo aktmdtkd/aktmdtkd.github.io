@@ -18,8 +18,8 @@ export class Unit {
         this.isMoving = false;
         this.moveSpeed = 4;
 
-        this.className = classInfo.name; // 한글 이름 (보병, 기병 등)
-        this.classType = config.class;   // 영문 키 (infantry, cavalry 등)
+        this.className = classInfo.name;
+        this.classType = config.class;
         
         this.moveRange = classInfo.moveRange;
         this.attackRange = classInfo.attackRange;
@@ -47,22 +47,31 @@ export class Unit {
         this.spriteName = this.getSpriteName();
     }
 
-getSpriteName() {
-        // [수정됨] 조조: 반드시 'raw.githubusercontent.com' 주소를 써야 합니다!
+    // [수정된 함수]
+    getSpriteName() {
+        // 기본 URL 경로 (반복되므로 변수로 처리)
+        const baseURL = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/";
+
+        // 1. 특수 캐릭터 (조조)
         if (this.name === '조조') {
-            return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/caocao_ngb.png";
+            return baseURL + "caocao_ngb.png";
         }
 
-        // --- 기존 로직 ---
-        let prefix = (this.team === 'blue') ? "red_" : "blue_";
-        let suffix = "nbb.png"; 
+        // 2. 색상 결정 (언더바 제거함)
+        // team이 blue(아군)이면 파일명은 red, team이 red(적군)이면 파일명은 blue
+        let color = (this.team === 'blue') ? "red" : "blue";
         
-        if (this.classType === 'infantry') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbb.png"; 
-        else if (this.classType === 'archer') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbow.png"; 
-        else if (this.classType === 'cavalry') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_ngb.png"; 
-        else if (this.classType === 'mage') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbb.png"; 
+        // 3. 파일명 조합
+        let filename = "";
         
-        return suffix;
+        if (this.classType === 'infantry') filename = `${color}_nbb.png`;
+        else if (this.classType === 'archer') filename = `${color}_nbow.png`;
+        else if (this.classType === 'cavalry') filename = `${color}_ngb.png`;
+        else if (this.classType === 'mage') filename = `${color}_nbb.png`; // 책사는 보병 이미지
+        else filename = `${color}_nbb.png`; // 기본값
+
+        // 최종 URL 반환
+        return baseURL + filename;
     }
 
     attackBump(targetX, targetY) {
