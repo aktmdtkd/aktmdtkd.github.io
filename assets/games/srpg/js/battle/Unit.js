@@ -50,17 +50,17 @@ export class Unit {
 getSpriteName() {
         // [수정됨] 조조: 반드시 'raw.githubusercontent.com' 주소를 써야 합니다!
         if (this.name === '조조') {
-            return "caocao_ngb.png";
+            return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/caocao_ngb.png";
         }
 
         // --- 기존 로직 ---
         let prefix = (this.team === 'blue') ? "red_" : "blue_";
         let suffix = "nbb.png"; 
         
-        if (this.classType === 'infantry') suffix = "nbb.png"; 
-        else if (this.classType === 'archer') suffix = "nbow.png"; 
-        else if (this.classType === 'cavalry') suffix = "ngb.png"; 
-        else if (this.classType === 'mage') suffix = "nbb.png"; 
+        if (this.classType === 'infantry') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbb.png"; 
+        else if (this.classType === 'archer') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbow.png"; 
+        else if (this.classType === 'cavalry') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_ngb.png"; 
+        else if (this.classType === 'mage') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbb.png"; 
         
         return prefix + suffix;
     }
