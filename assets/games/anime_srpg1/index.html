@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SRPG Engine</title>
+    <style>
+        body {
+            background: #202020; margin: 0; 
+            height: 100vh; height: 100dvh; 
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif; color: white;
+        }
+        
+        .game-wrapper { position: relative; width: 100%; height: 100%; }
+        #game-screen { display: none; width: 100%; height: 100%; }
+        canvas { background: #000; display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+        /* 병영 화면 */
+        #barracks-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; height: 100%; background: #222; z-index: 100;
+        }
+        .barracks-container {
+            width: 95%; max-width: 640px; background: #333; padding: 20px;
+            border-radius: 10px; border: 2px solid #555; text-align: center;
+            display: flex; flex-direction: column; height: 80%;
+        }
+        .roster-list {
+            flex: 1; overflow-y: auto; margin: 20px 0;
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+        }
+        .roster-item {
+            background: #444; padding: 10px; border-radius: 5px;
+            border: 2px solid transparent; display: flex; justify-content: space-between; align-items: center;
+        }
+        .roster-item.selected { border-color: #00ff00; background: #2a4a2a; }
+        
+        .equip-btn {
+            background: #222; border: 1px solid #777; color: #ddd;
+            padding: 5px 10px; font-size: 12px; border-radius: 4px; cursor: pointer;
+            min-width: 70px; text-align: center;
+        }
+        .equip-btn:hover { background: #555; }
+
+        #equipment-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: none; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #333; width: 90%; max-width: 400px; padding: 20px;
+            border: 2px solid #ffcc00; border-radius: 10px;
+            max-height: 80%; overflow-y: auto;
+        }
+        .item-row {
+            background: #444; margin-bottom: 8px; padding: 10px; border-radius: 5px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .item-row:hover { background: #555; }
+        .item-name { font-weight: bold; color: #ffcc00; }
+        .item-desc { font-size: 11px; color: #aaa; }
+        .tier-badge { background: #666; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; margin-right: 5px; }
+
+        .deploy-btn {
+            padding: 15px 30px; font-size: 18px; font-weight: bold;
+            background: #ffcc00; color: #000; border: none; border-radius: 5px; cursor: pointer;
+        }
+        .deploy-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        /* 인게임 토스트 메시지 */
+        #game-toast {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #ff4444; color: #ffcccc;
+            padding: 10px 20px; border-radius: 30px;
+            font-size: 14px; font-weight: bold;
+            display: none; z-index: 200; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            white-space: nowrap;
+            animation: popIn 0.2s ease-out;
+        }
+        @keyframes popIn {
+            from { transform: translate(-50%, 10px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        /* [신규] 데미지 예측 창 */
+        #damage-preview {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #fff; border-radius: 5px;
+            padding: 8px 12px; pointer-events: none; z-index: 60;
+            display: none; font-size: 13px; color: white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            white-space: nowrap;
+        }
+        .preview-val { font-weight: bold; font-size: 15px; color: #ffcc00; }
+        .preview-label { color: #aaa; font-size: 11px; margin-right: 5px; }
+
+        /* 기타 UI */
+        #dialogue-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(0,0,0,0.85); border: 2px solid #fff; border-radius: 8px; padding: 15px; display: none; z-index: 50; cursor: pointer; }
+        .dialogue-name { font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 8px; }
+        .dialogue-text { font-size: 16px; line-height: 1.5; color: #fff; }
+        .dialogue-next { text-align: right; font-size: 12px; color: #aaa; margin-top: 5px; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        #turn-indicator { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; font-weight: bold; pointer-events: none; z-index: 15; border: 1px solid #777; }
+        #zoom-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 15; }
+        .zoom-btn { width: 35px; height: 35px; background: rgba(0,0,0,0.6); border: 1px solid #777; color: white; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; user-select: none; }
+        #action-menu, #skill-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(40,40,40,0.95); border: 2px solid #ffcc00; border-radius: 8px; padding: 10px; display: none; flex-direction: column; gap: 8px; z-index: 20; min-width: 140px; }
+        .menu-btn { background: #555; color: white; border: 1px solid #777; padding: 10px; cursor: pointer; text-align: center; }
+        #game-ui { position: absolute; bottom: 0; left: 0; width: 100%; height: 20%; background: rgba(0,0,0,0.9); border-top: 1px solid #555; box-sizing: border-box; display: flex; padding: 5px 10px; justify-content: space-between; align-items: center; pointer-events: none; z-index: 10; }
+        .unit-info { display: flex; flex-direction: column; gap: 2px; width: 35%; }
+        .hp-bar-bg { width: 100%; height: 6px; background: #333; border: 1px solid #555; border-radius: 2px; }
+        .hp-bar-fill { width: 100%; height: 100%; background: #00ff00; transition: width 0.2s; }
+        .mp-bar-bg { width: 100%; height: 4px; background: #222; border: 1px solid #444; border-radius: 2px; }
+        .mp-bar-fill { width: 100%; height: 100%; background: #0088ff; transition: width 0.2s; }
+        .stats-info { display: flex; gap: 8px; font-size: 12px; font-weight: bold; width: 35%; justify-content: center; }
+        .terrain-info { text-align: right; width: 25%; }
+        
+        @media (max-width: 600px) { 
+            .stats-info { display: none; } 
+            .unit-info { width: 60%; } 
+            .terrain-info { width: 35%; }
+            .roster-list { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div id="barracks-screen">
+            <div class="barracks-container">
+                <h2 style="color:#ffcc00; margin:0;">출진 부대 편성</h2>
+                <p id="deploy-count" style="color:#aaa; font-size:14px; margin-bottom: 5px;">선택: 1 / 4</p>
+                <div class="roster-list" id="roster-list"></div>
+                <button class="deploy-btn" id="btn-deploy">출진 하기</button>
+            </div>
+        </div>
+
+        <div id="equipment-modal">
+            <div class="modal-content">
+                <h3 style="margin-top:0; color:#ffcc00;">장비 선택</h3>
+                <div id="item-list"></div>
+                <button class="menu-btn" style="width:100%; margin-top:10px;" onclick="closeModal()">닫기</button>
+            </div>
+        </div>
+
+        <div id="game-screen">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="game-toast">안내 메시지</div>
+            
+            <div id="damage-preview">
+                <span class="preview-label">예상 피해</span>
+                <span class="preview-val" id="preview-val">0</span>
+            </div>
+
+            <div id="dialogue-overlay">
+                <div class="dialogue-name" id="dia-name">이름</div>
+                <div class="dialogue-text" id="dia-text">대사 내용...</div>
+                <div class="dialogue-next">▼ 터치하여 계속</div>
+            </div>
+
+            <div id="turn-indicator">TURN: PLAYER</div>
+            <div id="zoom-controls">
+                <div class="zoom-btn" id="btn-zoom-in">+</div>
+                <div class="zoom-btn" id="btn-zoom-out">-</div>
+            </div>
+
+            <div id="action-menu">
+                <div class="menu-title">행동 선택</div>
+                <button class="menu-btn" id="btn-attack">공격</button>
+                <button class="menu-btn" id="btn-magic">책략</button>
+                <button class="menu-btn" id="btn-wait">대기</button>
+            </div>
+
+            <div id="skill-menu">
+                <div class="menu-title">책략 선택</div>
+                <button class="menu-btn" onclick="cancelSkill()">취소</button>
+            </div>
+
+            <div id="game-ui">
+                <div class="unit-info" id="ui-unit-panel" style="opacity: 0;">
+                    <div class="unit-name" id="ui-name">-</div>
+                    <div class="unit-class" id="ui-class">-</div>
+                    <div class="hp-bar-bg"><div class="hp-bar-fill" id="ui-hp-bar"></div></div>
+                    <div class="mp-bar-bg"><div class="mp-bar-fill" id="ui-mp-bar"></div></div>
+                </div>
+                <div class="stats-info" id="ui-stats-panel" style="opacity: 0;">
+                    <div class="stat-box"><span>공격</span><div id="ui-atk">0</div></div>
+                    <div class="stat-box"><span>정신</span><div id="ui-int">0</div></div>
+                    <div class="stat-box"><span>방어</span><div id="ui-def">0</div></div>
+                </div>
+                <div class="terrain-info">
+                    <div class="terrain-name" id="ui-terrain">-</div>
+                    <div id="ui-terrain-effect" style="font-size:10px; color:#aaa;">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { GameManager } from './js/core/GameManager.js';
+        const game = new GameManager();
+        game.init();
+        window.cancelSkill = () => game.openActionMenu(); 
+        window.closeModal = () => document.getElementById('equipment-modal').style.display = 'none';
+    </script>
+</body>
+</html>

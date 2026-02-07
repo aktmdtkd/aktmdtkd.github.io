@@ -1,0 +1,46 @@
+{
+  "infantry": {
+    "name": "보병",
+    "moveRange": 4,
+    "attackRange": 1,
+    "hp": 100,
+    "mp": 20,
+    "atk": 30,
+    "def": 20,
+    "int": 15,
+    "skills": ["smash"]
+  },
+  "cavalry": {
+    "name": "기병",
+    "moveRange": 6,
+    "attackRange": 1,
+    "hp": 120,
+    "mp": 10,
+    "atk": 35,
+    "def": 15,
+    "int": 10,
+    "skills": ["smash"]
+  },
+  "archer": {
+    "name": "궁병",
+    "moveRange": 4,
+    "attackRange": 2,
+    "hp": 80,
+    "mp": 30,
+    "atk": 25,
+    "def": 10,
+    "int": 20,
+    "skills": []
+  },
+  "mage": {
+    "name": "책사",
+    "moveRange": 3,
+    "attackRange": 1,
+    "hp": 60,
+    "mp": 100,
+    "atk": 10,
+    "def": 5,
+    "int": 40,
+    "skills": ["fire", "heal"]
+  }
+}

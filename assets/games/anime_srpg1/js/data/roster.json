@@ -1,0 +1,12 @@
+[
+  { "id": 1, "name": "조조", "class": "cavalry", "isFixed": true },
+  { "id": 2, "name": "하후돈", "class": "cavalry", "isFixed": false },
+  { "id": 3, "name": "하후연", "class": "archer", "isFixed": false },
+  { "id": 4, "name": "곽가", "class": "mage", "isFixed": false },
+  { "id": 5, "name": "허저", "class": "infantry", "isFixed": false },
+  { "id": 6, "name": "조홍", "class": "infantry", "isFixed": false },
+  { "id": 7, "name": "악진", "class": "infantry", "isFixed": false },
+  { "id": 8, "name": "순욱", "class": "mage", "isFixed": false },
+  { "id": 9, "name": "순유", "class": "mage", "isFixed": false },
+  { "id": 10, "name": "정욱", "class": "mage", "isFixed": false }
+]
