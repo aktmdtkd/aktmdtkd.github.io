@@ -50,7 +50,7 @@ export class Unit {
 getSpriteName() {
         // [수정됨] 조조: 반드시 'raw.githubusercontent.com' 주소를 써야 합니다!
         if (this.name === '조조') {
-            return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/anime_srpg_assets/yuruyuri/akari.png";
+            return "caocao_ngb.png";
         }
 
         // --- 기존 로직 ---
