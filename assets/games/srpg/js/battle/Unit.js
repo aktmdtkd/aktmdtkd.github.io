@@ -51,7 +51,7 @@ export class Unit {
     getSpriteName() {
         // 1. 특수 캐릭터 (조조)
         if (this.name === '조조') {
-            return "https://github.com/aktmdtkd/game_assets/blob/main/anime_srpg_assets/yuruyuri/akari.png";
+            return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/anime_srpg_assets/yuruyuri/akari.png";
         }
 
         // 2. 색상 접두사 결정 (요청하신 대로: 아군=red_, 적군=blue_)
