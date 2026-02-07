@@ -198,9 +198,29 @@ export class GameManager {
 
     playIntroDialogue() {
         const script = [
-            { name: "조조", text: "네 이놈 장보야! 하늘이 두렵지 않느냐!" },
-            { name: "장보", text: "푸하하! 황천의 세상이 오고 있다! 내 불맛을 보여주마!" },
-            { name: "조조", text: "전군, 공격하라! 저 요괴를 처단하라!" }
+            { name: "아카리", text: "어라? 여기가..." },
+            { name: "쿄코", text: "히에에게에게에에엣! 여기 어디야!!" },
+            { name: "유이", text: "으읏... 머리가... 여긴... 다들 괜찮아?" },
+            { name: "치나츠", text: "끼야아아악~, 유이 센빠이~ 여기 너무 무서워요!" },
+            { name: "유이", text: "응, 치나츠. 일단... 무사한가 보구나." },
+            { name: "쿄코", text: "음. 나랑 유이, 치나츠... 오락부는 모두 무사하구나!" },
+            { name: "아카리", text: "아카리! 아카리는 안셌어!" },
+            { name: "쿄코", text: "아, 맞네." },
+            { name: "병사", text: "음? 저곳에 외부인이 있다!" },
+            { name: "병사", text: "일단 저들을 체포한다!" },
+            { name: "유이", text: "이런. 정신은 없지만, 우선 도망쳐야겠어." },
+            { name: "쿄코", text: "그것도 좋겠지만, 여기 각자 무기가 있는데, 이걸 쓰는건 어때?" },
+            { name: "치나츠", text: "각자 무기를요? 그러게요. 제 앞에 큰 방패가 있어요." },
+            { name: "유이", text: "나는 단검 2개." },
+            { name: "쿄코", text: "후 후 훗. 나는 그 밸런~스를 지킨 칼과 방패가 있지롱!" },
+            { name: "아카리", text: "아... 아카리는 없, 는데?" },
+            { name: "병사", text: "어서 저들을 잡아라!" },
+            { name: "유이", text: "망설일 시간조차 주지 않네. 어쩔수 없겠네." },
+            { name: "쿄코", text: "모두 싸움을 준비하거라!" },
+            { name: "치나츠", text: "쿄코 센빠이가 지휘하는건 안돼요!" },
+            { name: "치나츠", text: "유이 센빠이라면 자살 폭격도 하겠어요!" },
+            { name: "유이", text: "모두 일단 침착하고, 싸울 준비를 하자!" },
+            { name: "아카리", text: "아카리는 무기가... 후에엥." }
         ];
         this.startDialogue(script);
     }
@@ -223,15 +243,21 @@ export class GameManager {
         }
         const line = this.dialogueQueue.shift();
         this.diaNameEl.innerText = line.name;
-        this.diaNameEl.style.color = (['조조','곽가','하후돈','하후연','조홍','악진','허저','순욱','순유','정욱'].includes(line.name)) ? '#00ccff' : '#ff6666';
+        
+        const isAlly = ['아카리', '쿄코', '유이', '치나츠'].includes(line.name);
+        this.diaNameEl.style.color = isAlly ? '#00ccff' : '#ff6666';
         this.diaTextEl.innerText = line.text;
 
         const speaker = this.units.find(u => u.name === line.name && !u.isDead());
-        if (speaker) {
+        
+        // 병사의 경우 이름이 겹치므로 가장 가까운 적을 잡거나 첫 번째 적을 잡음
+        const targetUnit = speaker || (line.name === '병사' ? this.units.find(u => u.team === 'red') : null);
+
+        if (targetUnit) {
             const viewW = this.renderer.canvas.width;
             const viewH = this.renderer.canvas.height;
-            const cx = speaker.pixelX - (viewW / 2) + 20;
-            const cy = speaker.pixelY - (viewH / 2) + 20;
+            const cx = targetUnit.pixelX - (viewW / 2) + 20;
+            const cy = targetUnit.pixelY - (viewH / 2) + 20;
             this.renderer.updateCamera(cx, cy, this.gridMap.cols, this.gridMap.rows);
         }
     }
@@ -243,9 +269,9 @@ export class GameManager {
             const stage1 = mapJson.stage1;
             
             this.gridMap.load(stage1);
-            
             this.battleSystem.setMap(this.gridMap);
             
+            // 1. 적군(맵 데이터에 있는 유닛) 배치
             stage1.units.forEach(uConfig => {
                 const classInfo = this.classes[uConfig.class];
                 const newUnit = new Unit(uConfig, classInfo, null);
@@ -253,16 +279,27 @@ export class GameManager {
                 this.units.push(newUnit);
             });
 
+            // 2. 아군 소환 위치 결정 (중앙에서 약간 왼쪽 위)
+            // 맵 중앙 좌표
+            const cx = Math.floor(this.gridMap.cols / 2); // 24
+            const cy = Math.floor(this.gridMap.rows / 2); // 20
+            
+            // 아군 시작점 (20, 16) 근처
+            const startX = cx - 4; 
+            const startY = cy - 4;
+
             const spawnCandidates = [];
-            for(let y=1; y<=4; y++) {
-                for(let x=1; x<=4; x++) {
+            for(let y = startY; y < startY + 4; y++) {
+                for(let x = startX; x < startX + 4; x++) {
                     if (this.gridMap.getTerrain(x, y) === 0 && !this.getUnitAt(x, y)) {
                         spawnCandidates.push({x, y});
                     }
                 }
             }
+            // 섞지 않고 순서대로 배치하거나, 랜덤하게 배치
             spawnCandidates.sort(() => Math.random() - 0.5);
 
+            // 3. 아군 배치
             this.selectedRoster.forEach((charId, index) => {
                 if (index >= spawnCandidates.length) return;
                 const charData = this.roster.find(c => c.id === charId);
@@ -482,7 +519,7 @@ export class GameManager {
     startPlayerTurn() {
         this.turn = 'PLAYER'; this.turnIndicator.innerText = `TURN: ${this.turn}`; this.turnIndicator.style.color = '#ffffff';
         this.units.forEach(u => u.resetTurn());
-        const mainChar = this.units.find(u => u.name === '조조' && !u.isDead());
+        const mainChar = this.units.find(u => u.name === '쿄코' || u.name === '유이'); // 주인공 포커스
         if(mainChar) {
             const cx = mainChar.pixelX - (this.renderer.canvas.width / 2) + 20;
             const cy = mainChar.pixelY - (this.renderer.canvas.height / 2) + 20;

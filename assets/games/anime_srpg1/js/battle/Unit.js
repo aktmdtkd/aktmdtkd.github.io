@@ -49,29 +49,29 @@ export class Unit {
 
     // [수정된 함수]
     getSpriteName() {
-        // 기본 URL 경로 (반복되므로 변수로 처리)
-        const baseURL = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/";
+        // 1. 유루유리 멤버 전용 스프라이트
+        const nameToSprite = {
+            "아카리": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/akari.png",
+            "쿄코": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/kyoko_warior.png",
+            "유이": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/yui_stold.png",
+            "치나츠": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/chinachu_tanker.png"
+        };
 
-        // 1. 특수 캐릭터 (조조)
-        if (this.name === '조조') {
-            return baseURL + "caocao_ngb.png";
+        if (nameToSprite[this.name]) {
+            return nameToSprite[this.name];
         }
 
-        // 2. 색상 결정 (언더바 제거함)
-        // team이 blue(아군)이면 파일명은 red, team이 red(적군)이면 파일명은 blue
-        let color = (this.team === 'blue') ? "red" : "blue";
-        
-        // 3. 파일명 조합
-        let filename = "";
-        
-        if (this.classType === 'infantry') filename = `${color}_nbb.png`;
-        else if (this.classType === 'archer') filename = `${color}_nbow.png`;
-        else if (this.classType === 'cavalry') filename = `${color}_ngb.png`;
-        else if (this.classType === 'mage') filename = `${color}_nbb.png`; // 책사는 보병 이미지
-        else filename = `${color}_nbb.png`; // 기본값
+        // 2. 적군 (red) 스프라이트
+        if (this.team === 'red') {
+            if (this.classType === 'cavalry') {
+                return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jgb.png";
+            } else {
+                return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jbb.png";
+            }
+        }
 
-        // 최종 URL 반환
-        return baseURL + filename;
+        // 기본값 (Fallback)
+        return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_nbb.png";
     }
 
     attackBump(targetX, targetY) {
