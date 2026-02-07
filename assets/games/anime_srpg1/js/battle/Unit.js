@@ -9,9 +9,17 @@ export class Unit {
         this.tileSize = 40;
         this.pixelX = this.x * this.tileSize;
         this.pixelY = this.y * this.tileSize;
+        
+        // 공격 모션용 오프셋 변수
         this.offsetX = 0;
         this.offsetY = 0;
         
+        // [신규] 공격 애니메이션 상태 변수
+        this.isBumping = false;
+        this.bumpTimer = 0;
+        this.bumpTargetX = 0;
+        this.bumpTargetY = 0;
+
         this.pathQueue = []; 
         this.targetPixelX = this.pixelX;
         this.targetPixelY = this.pixelY;
@@ -43,47 +51,43 @@ export class Unit {
         this.frame = 0;       
         this.frameTimer = 0;
 
-        // [신규] 유닛에 맞는 이미지 파일명 결정
         this.spriteName = this.getSpriteName();
     }
 
-    // [수정된 함수]
     getSpriteName() {
-        // 1. 유루유리 멤버 전용 스프라이트
         const nameToSprite = {
             "아카리": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/akari.png",
             "쿄코": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/kyoko_warior.png",
             "유이": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/yui_stold.png",
             "치나츠": "https://raw.githubusercontent.com/aktmdtkd/game_assets/refs/heads/main/anime_srpg_assets/yuruyuri/chinachu_tanker.png"
         };
-
-        if (nameToSprite[this.name]) {
-            return nameToSprite[this.name];
-        }
-
-        // 2. 적군 (red) 스프라이트
+        if (nameToSprite[this.name]) return nameToSprite[this.name];
         if (this.team === 'red') {
-            if (this.classType === 'cavalry') {
-                return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jgb.png";
-            } else {
-                return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jbb.png";
-            }
+            if (this.classType === 'cavalry') return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jgb.png";
+            else return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_jbb.png";
         }
-
-        // 기본값 (Fallback)
         return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/red_nbb.png";
     }
 
+    // [수정됨] 공격 모션 시작 (목표 설정 및 타이머 초기화)
     attackBump(targetX, targetY) {
         const dx = targetX - this.x;
         const dy = targetY - this.y;
+        
+        // 방향 전환
         if (Math.abs(dx) > Math.abs(dy)) this.direction = dx > 0 ? 2 : 1;
         else this.direction = dy > 0 ? 0 : 3;
 
         const distance = Math.sqrt(dx*dx + dy*dy);
         if(distance > 0) {
-            this.offsetX = (dx / distance) * 20;
-            this.offsetY = (dy / distance) * 20;
+            // 타일의 60% 지점까지 전진 (24px)
+            const bumpDist = 24; 
+            this.bumpTargetX = (dx / distance) * bumpDist;
+            this.bumpTargetY = (dy / distance) * bumpDist;
+            
+            // 애니메이션 시작
+            this.isBumping = true;
+            this.bumpTimer = 0;
         }
     }
 
@@ -116,10 +120,34 @@ export class Unit {
             this.frame = (this.frame + 1) % 4;
         }
 
-        if (this.offsetX !== 0 || this.offsetY !== 0) {
-            this.offsetX *= 0.8;
-            this.offsetY *= 0.8;
-            if (Math.abs(this.offsetX) < 0.5) { this.offsetX = 0; this.offsetY = 0; }
+        // [신규] 공격 모션 프레임 처리 (전진 -> 복귀)
+        if (this.isBumping) {
+            this.bumpTimer++;
+            const maxFrame = 16; // 전체 애니메이션 길이 (약 0.26초)
+            const peakFrame = 6; // 타격 지점 도달 시간
+
+            if (this.bumpTimer <= peakFrame) {
+                // 전진 단계 (빠르게)
+                const ratio = this.bumpTimer / peakFrame;
+                this.offsetX = this.bumpTargetX * ratio;
+                this.offsetY = this.bumpTargetY * ratio;
+            } else if (this.bumpTimer <= maxFrame) {
+                // 후퇴 단계 (부드럽게)
+                const ratio = 1 - ((this.bumpTimer - peakFrame) / (maxFrame - peakFrame));
+                this.offsetX = this.bumpTargetX * ratio;
+                this.offsetY = this.bumpTargetY * ratio;
+            } else {
+                // 종료
+                this.isBumping = false;
+                this.offsetX = 0;
+                this.offsetY = 0;
+            }
+        } else {
+            // 혹시 남은 오프셋 제거 (안전장치)
+            if (this.offsetX !== 0 || this.offsetY !== 0) {
+                this.offsetX = 0;
+                this.offsetY = 0;
+            }
         }
 
         if (!this.isMoving) return false;

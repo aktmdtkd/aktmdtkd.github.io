@@ -11,7 +11,6 @@ export class BattleSystem {
         this.gridMap = gridMap;
     }
 
-    // [신규] 순수 데미지 계산 (랜덤 제외, 예측용)
     getRawDamage(attacker, defender) {
         let defense = defender.def;
         
@@ -28,7 +27,6 @@ export class BattleSystem {
         return damage;
     }
 
-    // [신규] 순수 스킬 파워 계산 (랜덤 제외)
     getRawSkillPower(attacker, defender, skill) {
         let basePower = 0;
         let finalValue = 0;
@@ -54,7 +52,6 @@ export class BattleSystem {
         return Math.floor(finalValue);
     }
 
-    // [신규] 데미지 예측 메서드 (GameManager에서 호출)
     predictDamage(attacker, defender, action) {
         if (action.type === 'attack') {
             const rawDmg = this.getRawDamage(attacker, defender);
@@ -67,13 +64,12 @@ export class BattleSystem {
             if (skill.type === 'heal') {
                 return { val: rawPower, type: 'heal' };
             } else {
-                return { val: rawPower, type: 'damage' }; // 스킬은 랜덤이 없다고 가정 (현재 로직상)
+                return { val: rawPower, type: 'damage' }; 
             }
         }
         return null;
     }
 
-    // 실제 공격 실행 (랜덤 포함)
     calculateDamage(attacker, defender) {
         const baseDmg = this.getRawDamage(attacker, defender);
         const variance = (Math.random() * 0.2) + 0.9;
@@ -85,8 +81,11 @@ export class BattleSystem {
     }
 
     async executeAttack(attacker, defender, effectManager) {
+        // [수정됨] 모션 실행
         attacker.attackBump(defender.x, defender.y);
-        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 찌르는 타이밍(약 6프레임 ~ 0.1초) 이후에 타격감 발생을 위해 300ms 대기
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         const damage = this.calculateDamage(attacker, defender);
         defender.takeDamage(damage);
@@ -94,6 +93,7 @@ export class BattleSystem {
         const isCritical = Math.random() < 0.2;
         effectManager.addDamageText(defender.x, defender.y, damage, isCritical ? '#ff0000' : '#ffffff');
 
+        // 후딜레이 (복귀 모션 볼 시간)
         await new Promise(resolve => setTimeout(resolve, 300));
 
         if (!defender.isDead()) {
@@ -110,8 +110,10 @@ export class BattleSystem {
         attacker.useMp(skill.cost);
         effectManager.addDamageText(attacker.x, attacker.y, `MP -${skill.cost}`, '#5555ff');
 
+        // 스킬 시전 시 살짝 위로 뜸
         attacker.offsetY = -10;
         await new Promise(resolve => setTimeout(resolve, 200));
+        attacker.offsetY = 0; // 복귀
 
         let targets = [];
         const mainTarget = allUnits.find(u => u.x === targetX && u.y === targetY && !u.isDead());
@@ -150,8 +152,10 @@ export class BattleSystem {
 
     async performCounterAttack(defender, attacker, effectManager) {
         await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // [수정됨] 반격 모션도 동일하게 적용
         defender.attackBump(attacker.x, attacker.y);
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         const counterDamage = this.calculateDamage(defender, attacker);
         attacker.takeDamage(counterDamage);

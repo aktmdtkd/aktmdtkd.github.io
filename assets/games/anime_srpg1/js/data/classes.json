@@ -1,46 +1,91 @@
 {
-  "infantry": {
-    "name": "보병",
-    "moveRange": 4,
-    "attackRange": 1,
-    "hp": 100,
-    "mp": 20,
-    "atk": 30,
-    "def": 20,
-    "int": 15,
-    "skills": ["smash"]
-  },
-  "cavalry": {
-    "name": "기병",
-    "moveRange": 6,
-    "attackRange": 1,
-    "hp": 120,
-    "mp": 10,
-    "atk": 35,
-    "def": 15,
-    "int": 10,
-    "skills": ["smash"]
-  },
-  "archer": {
-    "name": "궁병",
-    "moveRange": 4,
-    "attackRange": 2,
-    "hp": 80,
-    "mp": 30,
-    "atk": 25,
-    "def": 10,
-    "int": 20,
-    "skills": []
-  },
-  "mage": {
-    "name": "책사",
-    "moveRange": 3,
-    "attackRange": 1,
-    "hp": 60,
-    "mp": 100,
-    "atk": 10,
-    "def": 5,
-    "int": 40,
-    "skills": ["fire", "heal"]
-  }
+    "infantry": {
+        "name": "보병",
+        "moveRange": 4,
+        "attackRange": 1,
+        "hp": 100,
+        "mp": 20,
+        "atk": 30,
+        "def": 20,
+        "int": 15,
+        "skills": ["smash"]
+    },
+    "cavalry": {
+        "name": "기병",
+        "moveRange": 6,
+        "attackRange": 1,
+        "hp": 120,
+        "mp": 10,
+        "atk": 35,
+        "def": 15,
+        "int": 10,
+        "skills": ["smash"]
+    },
+    "archer": {
+        "name": "궁병",
+        "moveRange": 4,
+        "attackRange": 2,
+        "hp": 80,
+        "mp": 30,
+        "atk": 25,
+        "def": 10,
+        "int": 20,
+        "skills": []
+    },
+    "mage": {
+        "name": "책사",
+        "moveRange": 3,
+        "attackRange": 1,
+        "hp": 60,
+        "mp": 100,
+        "atk": 10,
+        "def": 5,
+        "int": 40,
+        "skills": ["fire", "heal"]
+    },
+    
+    "class_akari": {
+        "name": "아카리",
+        "moveRange": 7,
+        "attackRange": 2,
+        "hp": 80,
+        "mp": 1000,
+        "atk": 15,
+        "def": 10,
+        "int": 60,
+        "skills": ["fire", "heal"]
+    },
+    "class_yui": {
+        "name": "도적",
+        "moveRange": 9,
+        "attackRange": 2,
+        "hp": 150,
+        "mp": 150,
+        "atk": 75,
+        "def": 18,
+        "int": 30,
+        "skills": ["smash"]
+    },
+    "class_chinatsu": {
+        "name": "대방패",
+        "moveRange": 4,
+        "attackRange": 1,
+        "hp": 500,
+        "mp": 90,
+        "atk": 10,
+        "def": 50,
+        "int": 25,
+        "skills": ["smash"]
+    },
+    "class_kyoko": {
+        "name": "전사",
+        "moveRange": 5,
+        "attackRange": 1,
+        "hp": 200,
+        "mp": 30,
+        "atk": 50,
+        "def": 30,
+        "int": 25,
+        "skills": ["smash"]
+    }
 }

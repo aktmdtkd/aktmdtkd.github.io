@@ -2,25 +2,25 @@
     {
         "id": 1,
         "name": "아카리",
-        "class": "mage",
+        "class": "class_akari",
         "isFixed": true
     },
     {
         "id": 2,
         "name": "쿄코",
-        "class": "infantry",
+        "class": "class_kyoko",
         "isFixed": true
     },
     {
         "id": 3,
         "name": "유이",
-        "class": "archer",
+        "class": "class_yui",
         "isFixed": true
     },
     {
         "id": 4,
         "name": "치나츠",
-        "class": "infantry",
+        "class": "class_chinatsu",
         "isFixed": true
     }
 ]
