@@ -47,36 +47,21 @@ export class Unit {
         this.spriteName = this.getSpriteName();
     }
 
-    // [신규] 이미지 매핑 로직
-    getSpriteName() {
-        // 1. 특수 캐릭터 (조조)
+getSpriteName() {
+        // [수정됨] 조조: 반드시 'raw.githubusercontent.com' 주소를 써야 합니다!
         if (this.name === '조조') {
             return "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/anime_srpg_assets/yuruyuri/akari.png";
         }
 
-        // 2. 색상 접두사 결정 (요청하신 대로: 아군=red_, 적군=blue_)
-        // 코드상 team이 'blue'가 아군(Player)입니다.
+        // --- 기존 로직 ---
         let prefix = (this.team === 'blue') ? "red_" : "blue_";
-
-        // 3. 병종별 접미사 결정
-        let suffix = "";
+        let suffix = "nbb.png"; 
         
-        if (this.classType === 'infantry') {
-            suffix = "nbb.png"; // 보병
-        } 
-        else if (this.classType === 'archer') {
-            suffix = "nbow.png"; // 궁병
-        } 
-        else if (this.classType === 'cavalry') {
-            suffix = "ngb.png"; // 기병 (원래 요청하신 red_ngb 형태)
-        } 
-        else if (this.classType === 'mage') {
-            suffix = "nbb.png"; // 책사는 보병 이미지 사용
-        } 
-        else {
-            suffix = "nbb.png"; // 기본값
-        }
-
+        if (this.classType === 'infantry') suffix = "nbb.png"; 
+        else if (this.classType === 'archer') suffix = "nbow.png"; 
+        else if (this.classType === 'cavalry') suffix = "ngb.png"; 
+        else if (this.classType === 'mage') suffix = "nbb.png"; 
+        
         return prefix + suffix;
     }
 
