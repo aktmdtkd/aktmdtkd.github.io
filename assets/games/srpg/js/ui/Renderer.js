@@ -12,17 +12,25 @@ export class Renderer {
 
     // [신규] 이미지 가져오기 또는 로드하기
     getOrLoadImage(filename) {
-        // 이미 로드된 적이 있으면 반환
+        // 캐시에 있으면 반환
         if (this.spriteCache[filename]) {
             return this.spriteCache[filename];
         }
 
-        // 처음 보는 파일이면 로드 시작
         const img = new Image();
-        // 경로: games/srpg/index.html 기준 -> games/game_assets/image/파일명
-        img.src = `../game_assets/image/${filename}`;
         
-        this.spriteCache[filename] = img; // 캐시에 저장
+        // 외부 도메인(GitHub 등) 이미지를 캔버스에 그릴 때 필수
+        img.crossOrigin = "Anonymous"; 
+
+        // [핵심 수정] http로 시작하면 절대 경로로 인식, 아니면 로컬 경로 붙이기
+        if (filename.startsWith('http') || filename.startsWith('https')) {
+            img.src = filename;
+        } else {
+            // 기존 로컬 경로 (상대 경로)
+            img.src = `../game_assets/image/${filename}`;
+        }
+        
+        this.spriteCache[filename] = img;
         return img;
     }
 
