@@ -62,7 +62,7 @@ getSpriteName() {
         else if (this.classType === 'cavalry') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_ngb.png"; 
         else if (this.classType === 'mage') suffix = "https://raw.githubusercontent.com/aktmdtkd/game_assets/main/caocao_srpg_assets/"+prefix+"_nbb.png"; 
         
-        return prefix + suffix;
+        return suffix;
     }
 
     attackBump(targetX, targetY) {
